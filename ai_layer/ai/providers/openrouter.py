@@ -22,7 +22,7 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 
 from .base import LLMProvider, LLMResponse, LLMConfig
-from exceptions import LLMError
+from ..exceptions import LLMError
 
 
 class OpenRouterProvider(LLMProvider):

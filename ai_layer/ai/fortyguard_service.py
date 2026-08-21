@@ -22,7 +22,7 @@ from typing import Optional, Any, List
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
-from exceptions import APIError
+from .exceptions import APIError
 
 
 @dataclass

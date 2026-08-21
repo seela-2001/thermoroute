@@ -14,13 +14,15 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-COPY pyproject.toml uv.lock /app/
+COPY backend/pyproject.toml backend/uv.lock /app/
+
+COPY ai_layer /ai_layer
 
 RUN uv sync --frozen --no-dev
 
-COPY . .
+COPY backend/ .
 
-COPY entrypoint.sh /entrypoint.sh
+COPY backend/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 

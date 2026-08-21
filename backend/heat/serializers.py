@@ -65,3 +65,21 @@ class HeatDataSerializer(serializers.ModelSerializer):
                 "Wind speed cannot be negative."
             )
         return value
+
+
+class CoordinateSerializer(serializers.Serializer):
+    lat = serializers.FloatField(
+        min_value=-90,
+        max_value=90,
+    )
+    lon = serializers.FloatField(
+        min_value=-180,
+        max_value=180,
+    )
+
+
+class HeatAnalysisRequestSerializer(serializers.Serializer):
+    points = CoordinateSerializer(
+        many=True,
+        allow_empty=False,
+    )

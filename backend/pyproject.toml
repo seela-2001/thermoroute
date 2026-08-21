@@ -8,7 +8,11 @@ dependencies = [
     "django>=6.1",
     "djangorestframework>=3.18.0",
     "gunicorn>=26.1.0",
+    "heatops-ai",
     "psycopg2-binary>=2.9.12",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
 ]
+
+[tool.uv.sources]
+heatops-ai = { path = "../ai_layer", editable = true }

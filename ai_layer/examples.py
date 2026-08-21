@@ -115,7 +115,7 @@ print("\n" + "=" * 60)
 print("Example 4: Configuration from Environment Variables")
 print("=" * 60)
 
-from config import Config, RiskWeights, OptimizationWeights
+from thermoroute.ai_layer.ai.config import Config, RiskWeights, OptimizationWeights
 
 # Create config from environment variables
 config = Config.from_env()

@@ -150,7 +150,7 @@ class ContextBuilder:
         # Validate context
         is_valid, error = context.validate()
         if not is_valid:
-            from exceptions import ValidationError
+            from .exceptions import ValidationError
             raise ValidationError(f"Invalid context: {error}")
 
         return context
