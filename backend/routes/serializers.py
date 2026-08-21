@@ -77,3 +77,15 @@ class RouteSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+class RouteAnalysisRequestSerializer(serializers.Serializer):
+    origin_lat = serializers.FloatField()
+    origin_lng = serializers.FloatField()
+    destination_lat = serializers.FloatField()
+    destination_lng = serializers.FloatField()
+    departure_date = serializers.DateField(
+        required=False
+    )
+    departure_time = serializers.TimeField(
+        required=False
+    )

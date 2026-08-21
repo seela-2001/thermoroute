@@ -1,3 +1,6 @@
 from django.urls import path
+from .views import RouteAnalysisView
 
-urlpatterns = []
+urlpatterns = [
+    path("analyze/", RouteAnalysisView.as_view(), name="route-analysis"),
+]
