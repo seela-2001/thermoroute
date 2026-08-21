@@ -8,6 +8,8 @@ ENV UV_COMPILE_BYTECODE=1
 
 ENV UV_LINK_MODE=copy
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
