@@ -6,16 +6,21 @@ import { cn } from '@/lib/utils';
 import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
 import { useScroll } from '@/components/ui/use-scroll';
 import { createPortal } from 'react-dom';
+import { UsRoadsMegaMenu } from '@/components/ui/us-roads-mega-menu';
 import logo from '@/components/ui/images/642e6491-fdc6-4250-bf22-1af5448a877b.png';
 
 export function Header() {
     const [open, setOpen] = React.useState(false);
     const scrolled = useScroll(10);
 
-    const links = [
+    const links: Array<{
+        label: string;
+        href?: string;
+        component?: React.ComponentType;
+    }> = [
         {
-            label: 'Features',
-            href: '#',
+            label: 'US ROADS',
+            component: UsRoadsMegaMenu,
         },
         {
             label: 'Pricing',
@@ -50,11 +55,17 @@ export function Header() {
                     <img src={logo} alt="Logo" className="h-18 w-auto" />
                 </Link>
                 <div className="hidden items-center gap-2 md:flex">
-                    {links.map((link) => (
-                        <a key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" href={link.href}>
-                            {link.label}
-                        </a>
-                    ))}
+                    {links.map((link) => {
+                        if (link.component) {
+                            const Component = link.component;
+                            return <Component key={link.label} />;
+                        }
+                        return (
+                            <a key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" href={link.href}>
+                                {link.label}
+                            </a>
+                        );
+                    })}
                     <Button>Get Started</Button>
                 </div>
                 <Button
@@ -71,15 +82,21 @@ export function Header() {
             </nav>
             <MobileMenu open={open} className="flex flex-col justify-between gap-2">
                 <div className="grid gap-y-2">
-                    {links.map((link) => (
-                        <a
-                            key={link.label}
-                            className="hover:bg-gray-100 rounded-md justify-start px-4 py-2 text-sm font-medium"
-                            href={link.href}
-                        >
-                            {link.label}
-                        </a>
-                    ))}
+                    {links.map((link) => {
+                        if (link.component) {
+                            const Component = link.component;
+                            return <Component key={link.label} />;
+                        }
+                        return (
+                            <a
+                                key={link.label}
+                                className="hover:bg-gray-100 rounded-md justify-start px-4 py-2 text-sm font-medium"
+                                href={link.href}
+                            >
+                                {link.label}
+                            </a>
+                        );
+                    })}
                 </div>
                 <div className="flex flex-col gap-2">
                     <Button variant="outline" className="w-full">
