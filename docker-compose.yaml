@@ -8,6 +8,8 @@ services:
       - ./backend/.env
     depends_on:
       - database
+    networks:
+      - thermoroute_net
 
   database:
     image: postgres:17
@@ -18,7 +20,21 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - thermoroute_net
 
+  frontend:
+    build: ./frontend
+    container_name: thermoroute_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - thermoroute_net
 
 volumes:
   db_data:
+
+networks:
+  thermoroute_net:
