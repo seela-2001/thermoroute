@@ -1,12 +1,26 @@
 from .route_providers import RouteProvider
+from .weather_services import WeatherService
+from .poi_services import POIService
 from heat.services.heat_analysis_services import HeatAnalysisService
 
 
 class RouteAnalysisService:
+    """
+    Orchestrates:
+    - Route retrieval
+    - Heat analysis
+    - Weather data
+    - Nearby POIs
+
+    POI failures are non-blocking because POIs are
+    supplementary data and should not prevent route analysis.
+    """
 
     def __init__(self):
         self.route_provider = RouteProvider()
         self.heat_analysis_service = HeatAnalysisService()
+        self.weather_service = WeatherService()
+        self.poi_service = POIService()
 
     def analyze(
         self,
@@ -30,9 +44,10 @@ class RouteAnalysisService:
 
         analyzed_routes = []
 
-        for index, route in enumerate(routes, start=1):
+        for index, route in enumerate(routes):
+
             geometry_points = self._geometry_to_points(
-                route["geometry"]
+                route.get("geometry")
             )
             sampled_points = self._sample_points(
                 geometry_points,
@@ -41,76 +56,139 @@ class RouteAnalysisService:
             heat_result = self.heat_analysis_service.analyze(
                 sampled_points
             )
-            if not heat_result["success"]:
+
+            if not heat_result.get("success"):
                 return {
                     "success": False,
-                    "errors": heat_result["errors"],
+                    "errors": heat_result.get(
+                        "errors",
+                        ["Heat analysis failed"],
+                    ),
                 }
 
             analysis = heat_result["analysis"]
-            route_score = self._calculate_route_score(
-                distance_km=route["distance_km"],
-                duration_min=route["duration_min"],
-                heat_risk_score=analysis.overall_risk_score,
-            )
-            recommendation = self._build_recommendation(
-                route_id=f"route_{index}",
-                route_score=route_score,
-                heat_risk_score=analysis.overall_risk_score,
-                risk_level=analysis.risk_level,
-                metrics=analysis.metrics,
-            )
+            weather = {
+                "current": {},
+                "hourly": [],
+            }
+
+            if sampled_points:
+                try:
+                    weather = self.weather_service.get_weather(
+                        lat=sampled_points[0]["lat"],
+                        lon=sampled_points[0]["lon"],
+                    )
+
+                    if not isinstance(weather, dict):
+                        weather = {
+                            "current": {},
+                            "hourly": [],
+                        }
+
+                except Exception as exc:
+                    print(
+                        f"Weather API Error: {exc}"
+                    )
+
+                    weather = {
+                        "current": {},
+                        "hourly": [],
+                    }
+
+            pois = []
+
+            if sampled_points:
+                try:
+                    pois = self.poi_service.get_pois(
+                        sampled_points,
+                        radius=500,
+                    )
+
+                    if not isinstance(pois, list):
+                        pois = []
+
+                except Exception as exc:
+                    print(
+                        f"POI service unavailable: {exc}"
+                    )
+
+                    pois = []
+
+            analyzed_route = {
+                **route,
+
+                "heat_data": heat_result.get(
+                    "heat_data",
+                    [],
+                ),
+                "risk": {
+                    "score": analysis.overall_risk_score,
+                    "level": analysis.risk_level,
+                    "critical_segments": (
+                        analysis.critical_segments
+                    ),
+                    "metrics": analysis.metrics,
+                },
+                "weather": weather.get(
+                    "current",
+                    {},
+                ),
+                "hourly_conditions": weather.get(
+                    "hourly",
+                    [],
+                ),
+                "pois": pois,
+            }
             analyzed_routes.append(
-                {
-                    "id": f"route_{index}",
-                    "distance_km": route["distance_km"],
-                    "duration_min": route["duration_min"],
-                    "geometry": route["geometry"],
-                    "sampled_points": sampled_points,
-                    "heat_data": heat_result["heat_data"],
-                    "risk": {
-                        "score": analysis.overall_risk_score,
-                        "level": analysis.risk_level,
-                        "critical_segments": analysis.critical_segments,
-                        "metrics": analysis.metrics,
-                    },
-                    "route_score": route_score,
-                    "recommendation": recommendation,
-                }
+                analyzed_route
             )
-        analyzed_routes.sort(
-            key=lambda route: route["route_score"],
-            reverse=True,
+        recommended_route = min(
+            analyzed_routes,
+            key=lambda route: route["risk"]["score"],
         )
-
-        for index, route in enumerate(analyzed_routes):
-
-            route["rank"] = index + 1
-
-            route["recommended"] = index == 0
-
+        recommended_route_id = (
+            recommended_route.get("id")
+            or recommended_route.get("route_id")
+            or str(
+                analyzed_routes.index(
+                    recommended_route
+                )
+            )
+        )
         alternatives = []
 
-        for route in analyzed_routes[1:]:
+        for route_index, route in enumerate(
+            analyzed_routes
+        ):
+            route_id = (
+                route.get("id")
+                or route.get("route_id")
+                or str(route_index)
+            )
+
+            if route_id == recommended_route_id:
+                continue
+
             alternatives.append(
                 {
-                    "route_id": route["id"],
-                    "rank": route["rank"],
-                    "route_score": route["route_score"],
-                    "distance_km": route["distance_km"],
-                    "duration_min": route["duration_min"],
-                    "heat_risk_score": route["risk"]["score"],
+                    "route_id": route_id,
+                    "risk_score": route["risk"]["score"],
                     "risk_level": route["risk"]["level"],
+                    "distance_km": route.get(
+                        "distance_km"
+                    ),
+                    "duration_min": route.get(
+                        "duration_min"
+                    ),
                 }
             )
 
+        alternatives.sort(
+            key=lambda route: route["risk_score"]
+        )
         return {
             "success": True,
-            "recommended_route_id": (
-                analyzed_routes[0]["id"]
-                if analyzed_routes
-                else None
-            ),
+            "recommended_route_id": recommended_route_id,
             "routes_count": len(analyzed_routes),
             "routes": analyzed_routes,
             "alternatives": alternatives,
@@ -118,16 +196,28 @@ class RouteAnalysisService:
 
     @staticmethod
     def _geometry_to_points(geometry):
+        if not geometry:
+            return []
+
+        coordinates = geometry.get(
+            "coordinates",
+            [],
+        )
+
         return [
             {
                 "lat": coordinate[1],
                 "lon": coordinate[0],
             }
-            for coordinate in geometry["coordinates"]
+            for coordinate in coordinates
+            if len(coordinate) >= 2
         ]
 
     @staticmethod
-    def _sample_points(points, max_points=20):
+    def _sample_points(
+        points,
+        max_points=5,
+    ):
         if not points:
             return []
 
@@ -140,134 +230,3 @@ class RouteAnalysisService:
             points[int(i * step)]
             for i in range(max_points)
         ]
-
-    @staticmethod
-    def _calculate_route_score(
-        distance_km: float,
-        duration_min: float,
-        heat_risk_score: float,
-    ) -> float:
-
-        distance_score = max(
-            0,
-            min(
-                100,
-                100 - (distance_km / 50) * 100,
-            ),
-        )
-        duration_score = max(
-            0,
-            min(
-                100,
-                100 - (duration_min / 120) * 100,
-            ),
-        )
-        heat_score = max(
-            0,
-            min(
-                100,
-                100 - heat_risk_score,
-            ),
-        )
-        final_score = (
-            heat_score * 0.50
-            + distance_score * 0.30
-            + duration_score * 0.20
-        )
-
-        return round(final_score, 2)
-
-    @staticmethod
-    def _build_recommendation(
-        route_id: str,
-        route_score: float,
-        heat_risk_score: int,
-        risk_level: str,
-        metrics: dict,
-    ):
-        max_heat_index = metrics.get(
-            "max_heat_index",
-            0,
-        )
-        if (
-            heat_risk_score >= 80
-            or max_heat_index >= 45
-        ):
-            decision = "AVOID"
-
-        elif (
-            heat_risk_score >= 50
-            or max_heat_index >= 38
-        ):
-            decision = "CAUTION"
-
-        else:
-            decision = "RECOMMEND"
-
-        if decision == "RECOMMEND":
-            headline = "Recommended route"
-
-        elif decision == "CAUTION":
-            headline = "Use this route with caution"
-
-        else:
-            headline = "Avoid this route if possible"
-
-        if heat_risk_score < 40:
-            heat_reason = "low heat exposure"
-
-        elif heat_risk_score < 60:
-            heat_reason = "moderate heat exposure"
-
-        elif heat_risk_score < 80:
-            heat_reason = "high heat exposure"
-
-        else:
-            heat_reason = "very high heat exposure"
-
-        reason = (
-            f"This route has a score of {route_score}/100 "
-            f"with {heat_reason}."
-        )
-
-        key_factors = [
-            f"Heat risk score: {heat_risk_score}/100",
-            f"Risk level: {risk_level}",
-            f"Maximum temperature: "
-            f"{metrics.get('max_temperature', 0)}°C",
-            f"Maximum heat index: "
-            f"{metrics.get('max_heat_index', 0):.1f}°C",
-        ]
-
-        if max_heat_index >= 40:
-            safety_tip = (
-                "Extreme heat exposure. Stay hydrated, "
-                "seek shade, and consider traveling "
-                "during cooler hours."
-            )
-
-        elif heat_risk_score >= 60:
-            safety_tip = (
-                "Elevated heat risk. Stay hydrated "
-                "and take breaks when possible."
-            )
-
-        elif heat_risk_score >= 40:
-            safety_tip = (
-                "Moderate heat exposure. Stay hydrated "
-                "and prefer shaded areas."
-            )
-
-        else:
-            safety_tip = (
-                "Heat conditions are relatively safe. "
-                "Normal precautions apply."
-            )
-
-        return {
-            "decision": decision,
-            "headline": headline,
-            "reason": reason,
-            "key_factors": key_factors,
-            "safety_tip": safety_tip,
-        }

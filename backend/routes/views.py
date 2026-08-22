@@ -26,7 +26,10 @@ class RouteAnalysisView(APIView):
             return Response(
                 {
                     "status": "error",
-                    "errors": result.get("errors", []),
+                    "errors": result.get(
+                        "errors",
+                        [],
+                    ),
                 },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
@@ -34,16 +37,16 @@ class RouteAnalysisView(APIView):
         return Response(
             {
                 "status": "success",
-                "recommended_route_id": result[
-                    "recommended_route_id"
-                ],
-                "routes_count": result[
-                    "routes_count"
-                ],
+                "recommended_route_id": (
+                    result["recommended_route_id"]
+                ),
+                "routes_count": (
+                    result["routes_count"]
+                ),
                 "routes": result["routes"],
-                "alternatives": result[
-                    "alternatives"
-                ],
+                "alternatives": (
+                    result["alternatives"]
+                ),
             },
             status=status.HTTP_200_OK,
         )

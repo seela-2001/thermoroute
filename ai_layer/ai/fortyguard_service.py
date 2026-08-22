@@ -192,8 +192,8 @@ class FortyGuardService:
 
             # Poll for completion
             status_url = f"{self.base_url}/status/{activity_id}"
-            max_polls = 60  # 10 minutes max
-            poll_interval = 10  # seconds
+            max_polls = 30
+            poll_interval = 2           
 
             for attempt in range(max_polls):
                 time.sleep(poll_interval)
