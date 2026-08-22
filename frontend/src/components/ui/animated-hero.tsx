@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { PhoneCall } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import bg1 from '@/components/ui/images/background (1).jpg';
 import bg2 from '@/components/ui/images/background (2).jpg';
 import bg3 from '@/components/ui/images/background (3).jpg';
@@ -49,6 +50,7 @@ const createAnimatedSet = (images: string[], count = 3) => {
 };
 
 function Hero() {
+  const navigate = useNavigate();
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
     () => ["Safer.", "Cooler", "Smarter"],
@@ -229,6 +231,9 @@ function Hero() {
               whileHover={{ scale: 1.05 }}
               transition={{ type: "tween", duration: 0.2, ease: "easeOut" }}
               className="cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors h-11 rounded-md px-8 bg-gray-900 text-white hover:bg-gray-800"
+              onClick={() => {
+                window.location.href = "/plan";
+              }}
             >
               Try it right here
             </motion.button>

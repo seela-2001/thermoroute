@@ -146,9 +146,9 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
                         ref={menuRef}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
-                        className="absolute top-full left-0 mt-1 w-[480px] bg-white rounded-lg border border-gray-200 shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200"
+                        className="absolute top-full right-0 mt-1 min-w-[450px] bg-white rounded-lg border border-gray-200 shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200"
                     >
-                        <div className="p-3 grid grid-cols-3 gap-x-6 gap-y-0.5">
+                        <div className="p-2 grid grid-cols-3 gap-x-4 gap-y-0.5">
                             {/* Column 1 */}
                             <div className="space-y-0">
                                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
