@@ -1,4 +1,4 @@
-import React from 'react'
+// import React from 'react'
 import fortyguardLogo from '@/components/ui/images/fortyguard_logo_footer.png'
 
 const PoweredBy = () => {
