@@ -21,7 +21,22 @@ jobs:
     name: Run backend tests
     runs-on: ubuntu-latest
 
-    defaults: 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
       run:
         working-directory: backend
 
@@ -37,10 +52,16 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
-          version: 'latest'
+          version: latest
 
       - name: Install dependencies
         run: uv sync --frozen
+
+      - name: Create .env file
+        run: |
+         cat << 'EOF' > .env
+         ${{ secrets.ENV_FILE }}
+         EOF
 
       - name: Django checks
         run: uv run python manage.py check
