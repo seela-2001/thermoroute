@@ -1,10 +1,3 @@
-/**
- * Centralized Type Definitions
- * Single source of truth for all shared types
- */
-
-// ==================== RISK TYPES ====================
-
 export type RiskLevel = 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH' | 'EXTREME';
 
 export interface RiskScore {
@@ -12,19 +5,15 @@ export interface RiskScore {
   level: RiskLevel;
 }
 
-// ==================== WEATHER TYPES ====================
-
 export interface WeatherCondition {
-  temperature: number; // Celsius
-  humidity: number; // Percentage
-  heatIndex: number; // Celsius
+  temperature: number;
+  humidity: number;
+  heatIndex: number;
   uvIndex: number;
-  windSpeed: number; // km/h
+  windSpeed: number;
   condition: string;
-  time: string; // ISO timestamp
+  time: string;
 }
-
-// ==================== GEO TYPES ====================
 
 export interface Coordinates {
   lat: number;
@@ -40,8 +29,6 @@ export interface Location extends Coordinates {
   country?: string;
   confidence?: number;
 }
-
-// ==================== ROUTE TYPES ====================
 
 export interface RouteSegment {
   id: number;
@@ -160,25 +147,21 @@ export interface RouteAnalysisResponse {
   errors?: string[];
 }
 
-// ==================== HEAT DATA TYPES ====================
-
 export interface HeatDataPoint {
   lat: number;
   lon: number;
-  temperature: number; // Celsius
-  humidity: number; // Percentage
-  heat_index: number; // Celsius
+  temperature: number;
+  humidity: number;
+  heat_index: number;
   uv_index: number;
   aqi: number;
   risk_level: string;
   timestamp: string;
 }
 
-// ==================== WEATHER DATA TYPES ====================
-
 export interface WeatherData {
   time?: string;
-  temperature?: number; // Celsius
+  temperature?: number;
   feels_like?: number;
   humidity?: number;
   precipitation?: number;
@@ -186,8 +169,6 @@ export interface WeatherData {
   uv_index?: number;
   weather_code?: number;
 }
-
-// ==================== CAMERA TYPES ====================
 
 export interface Camera {
   id: string;
@@ -211,13 +192,11 @@ export interface CameraFeed {
   is_available: boolean;
 }
 
-// ==================== FORECAST TYPES ====================
-
 export interface HourlyForecast {
   hourOffset: number;
   time: Date;
-  temperature: number; // Fahrenheit for UI
-  heatIndex: number; // Fahrenheit for UI
+  temperature: number;
+  heatIndex: number;
   riskLevel: 'low' | 'medium' | 'high' | 'extreme';
   isRecommended: boolean;
   reason: string;
@@ -231,8 +210,6 @@ export interface DepartureOption {
   recommended: boolean;
   reason?: string;
 }
-
-// ==================== RECOMMENDATION TYPES ====================
 
 export interface Recommendation {
   action: 'leave_now' | 'wait' | 'avoid';
@@ -256,17 +233,15 @@ export interface RecommendationOutput {
   safety_tip: string;
 }
 
-// ==================== PLAN TYPES ====================
-
 export interface TripPlan {
   routeId: string;
-  tripDuration: number; // minutes
+  tripDuration: number;
   stopStrategy: 'none' | 'optional' | 'recommended' | 'structured';
   recommendedStops: Stop[];
   allStops: Stop[];
   summary: {
     totalStops: number;
-    estimatedTotalStopTime: number; // minutes
+    estimatedTotalStopTime: number;
     fuelStops: number;
     mealStops: number;
     restStops: number;
@@ -281,15 +256,13 @@ export interface Stop {
   type: StopType;
   location: Coordinates;
   roadName: string;
-  distanceFromOrigin: number; // miles from start
-  estimatedArrivalTime: number; // minutes from departure
+  distanceFromOrigin: number;
+  estimatedArrivalTime: number;
   isRecommended: boolean;
   isHeatAware: boolean;
   services?: string[];
   description?: string;
 }
-
-// ==================== UI TYPES ====================
 
 export interface RouteCardProps {
   route: AnalyzedRoute;
@@ -312,8 +285,6 @@ export interface RouteMapProps {
 export interface SegmentAnalysisProps {
   route: AnalyzedRoute | null;
 }
-
-// ==================== API RESPONSE TYPES ====================
 
 export interface ApiResponse<T> {
   status: 'success' | 'error';
@@ -339,8 +310,6 @@ export interface AutocompleteResult {
   result_type?: string;
   confidence?: number;
 }
-
-// ==================== ERROR TYPES ====================
 
 export interface ApiError {
   message: string;

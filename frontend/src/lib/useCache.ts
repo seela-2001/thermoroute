@@ -6,11 +6,11 @@ interface CacheEntry<T> {
 }
 
 interface CacheConfig {
-  ttl: number; // Time to live in milliseconds
+  ttl: number;
 }
 
 const defaultConfig: CacheConfig = {
-  ttl: 15 * 60 * 1000, // 15 minutes default
+  ttl: 15 * 60 * 1000,
 };
 
 export function useCache<T>(config: Partial<CacheConfig> = {}) {
@@ -52,7 +52,6 @@ export function useCache<T>(config: Partial<CacheConfig> = {}) {
   return { get, set, clear, has };
 }
 
-// Simple cache for API calls
 export async function withCache<T>(
   key: string,
   fetcher: () => Promise<T>,
@@ -61,7 +60,6 @@ export async function withCache<T>(
   const { ttl } = { ...defaultConfig, ...config };
   const cacheKey = `cache_${key}`;
 
-  // Check cache
   try {
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
@@ -72,20 +70,16 @@ export async function withCache<T>(
       }
     }
   } catch {
-    // Ignore cache errors
   }
 
-  // Fetch fresh data
   const data = await fetcher();
 
-  // Store in cache
   try {
     localStorage.setItem(cacheKey, JSON.stringify({
       data,
       timestamp: Date.now(),
     } as CacheEntry<T>));
   } catch {
-    // Ignore cache errors (e.g., quota exceeded)
   }
 
   return data;

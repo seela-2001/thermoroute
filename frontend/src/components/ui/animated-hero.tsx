@@ -63,7 +63,6 @@ function Hero() {
 
   return (
     <div className="relative w-full bg-white overflow-hidden">
-      {}
       <div className="absolute inset-0 z-0 flex flex-col pointer-events-none overflow-hidden">
         <div className="h-1/4 w-full overflow-hidden">
           <div className="flex animate-scroll-left flex-nowrap h-full">
@@ -169,7 +168,6 @@ function Hero() {
         `}</style>
       </div>
 
-      {}
       <div className="container mx-auto relative z-10 pointer-events-none">
         <div className="flex gap-8 py-20 lg:py-40 items-center justify-center flex-col">
           <div className="flex gap-4 flex-col pointer-events-auto">

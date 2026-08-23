@@ -1,12 +1,4 @@
-/**
- * @deprecated Import from @/types instead
- * This file is kept for backward compatibility
- */
-
-// Re-export from centralized types
 export * from './index';
-
-// Keep route-specific types that are not in the central file
 export type RiskLevel = 'low' | 'moderate' | 'high' | 'extreme';
 
 export interface Coordinate {
@@ -33,8 +25,8 @@ export interface Route {
   id: string;
   name: string;
   description: string;
-  distance: number; // miles
-  duration: number; // minutes
+  distance: number;
+  duration: number;
   origin: Location;
   destination: Location;
   waypoints: RouteWaypoint[];
@@ -45,7 +37,7 @@ export interface Route {
   heatRisk: HeatRiskPoint[];
   isRecommended: boolean;
   features: {
-    shadeCoverage: number; // percentage
+    shadeCoverage: number;
     restStops: number;
     fuelStations: number;
     trafficLevel: 'light' | 'moderate' | 'heavy';
@@ -53,9 +45,9 @@ export interface Route {
 }
 
 export interface HeatRiskPoint {
-  hourOffset: number; // 0-12 hours from now
+  hourOffset: number;
   timestamp: Date;
-  temperature: number; // Fahrenheit
+  temperature: number;
   heatIndex: number;
   riskLevel: RiskLevel;
   humidity: number;
