@@ -14,7 +14,6 @@ venv/
 
 # Python version / lock files
 /backend/.python-version
-/backend/uv.lock
 
 # Django
 db.sqlite3
