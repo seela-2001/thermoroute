@@ -2,24 +2,30 @@ FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 
-ENV PYTHONBUFFERED=1
+ENV PYTHONUNBUFFERED=1
 
 ENV UV_COMPILE_BYTECODE=1
 
 ENV UV_LINK_MODE=copy
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-COPY pyproject.toml uv.lock /app/
+COPY backend/pyproject.toml backend/uv.lock /app/
+
+COPY ai_layer /ai_layer
 
 RUN uv sync --frozen --no-dev
 
-COPY . .
+COPY backend/ .
 
-ENV PATH="/app/.venv/bin:$PATH"
+COPY backend/entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+ENTRYPOINT ["/entrypoint.sh"]
