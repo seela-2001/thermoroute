@@ -33,7 +33,8 @@ jobs:
       - name: Build and Push backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: .
+          file: ./backend/Dockerfile
           push: true
           tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:${{ github.event.workflow_run.head_sha }}
