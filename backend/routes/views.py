@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import RouteAnalysisRequestSerializer
 from .services.route_analysis_service import RouteAnalysisService
+from .services.location_services import LocationService
 
 
 class RouteAnalysisView(APIView):
@@ -48,5 +49,51 @@ class RouteAnalysisView(APIView):
                     result["alternatives"]
                 ),
             },
+            status=status.HTTP_200_OK,
+        )
+
+class LocationAutocompleteView(APIView):
+
+    def get(self, request):
+
+        query = request.query_params.get(
+            "q",
+            "",
+        ).strip()
+
+        if len(query) < 2:
+            return Response(
+                {
+                    "success": True,
+                    "results": [],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        try:
+            limit = int(
+                request.query_params.get(
+                    "limit",
+                    5,
+                )
+            )
+        except ValueError:
+            limit = 5
+
+        service = LocationService()
+
+        result = service.autocomplete(
+            text=query,
+            limit=limit,
+        )
+
+        if not result.get("success"):
+            return Response(
+                result,
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            result,
             status=status.HTTP_200_OK,
         )

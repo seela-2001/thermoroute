@@ -1,26 +1,18 @@
 from .route_providers import RouteProvider
 from .weather_services import WeatherService
 from .poi_services import POIService
+from .traffic_services import TrafficService
 from heat.services.heat_analysis_services import HeatAnalysisService
 
 
 class RouteAnalysisService:
-    """
-    Orchestrates:
-    - Route retrieval
-    - Heat analysis
-    - Weather data
-    - Nearby POIs
-
-    POI failures are non-blocking because POIs are
-    supplementary data and should not prevent route analysis.
-    """
 
     def __init__(self):
         self.route_provider = RouteProvider()
         self.heat_analysis_service = HeatAnalysisService()
         self.weather_service = WeatherService()
         self.poi_service = POIService()
+        self.traffic_service = TrafficService()
 
     def analyze(
         self,
@@ -28,6 +20,8 @@ class RouteAnalysisService:
         origin_lng: float,
         destination_lat: float,
         destination_lng: float,
+        start_date: str | None = None,
+        start_time: str | None = None,
     ):
         routes = self.route_provider.get_routes(
             origin_lat=origin_lat,
@@ -44,8 +38,7 @@ class RouteAnalysisService:
 
         analyzed_routes = []
 
-        for index, route in enumerate(routes):
-
+        for route in routes:
             geometry_points = self._geometry_to_points(
                 route.get("geometry")
             )
@@ -111,12 +104,15 @@ class RouteAnalysisService:
                     print(
                         f"POI service unavailable: {exc}"
                     )
-
                     pois = []
+
+            traffic = self._get_route_traffic(
+                sampled_points
+            )
 
             analyzed_route = {
                 **route,
-
+                "sampled_points": sampled_points,
                 "heat_data": heat_result.get(
                     "heat_data",
                     [],
@@ -138,10 +134,21 @@ class RouteAnalysisService:
                     [],
                 ),
                 "pois": pois,
+                "traffic": traffic,
             }
+
             analyzed_routes.append(
                 analyzed_route
             )
+
+        if not analyzed_routes:
+            return {
+                "success": False,
+                "errors": [
+                    "Route analysis returned no routes"
+                ],
+            }
+
         recommended_route = min(
             analyzed_routes,
             key=lambda route: route["risk"]["score"],
@@ -169,6 +176,11 @@ class RouteAnalysisService:
             if route_id == recommended_route_id:
                 continue
 
+            traffic_data = route.get(
+                "traffic",
+                {},
+            )
+
             alternatives.append(
                 {
                     "route_id": route_id,
@@ -179,6 +191,18 @@ class RouteAnalysisService:
                     ),
                     "duration_min": route.get(
                         "duration_min"
+                    ),
+                    "traffic_level": traffic_data.get(
+                        "traffic_level",
+                        "UNKNOWN",
+                    ),
+                    "traffic_score": traffic_data.get(
+                        "traffic_score",
+                        0,
+                    ),
+                    "congestion": traffic_data.get(
+                        "congestion",
+                        0.0,
                     ),
                 }
             )
@@ -193,6 +217,246 @@ class RouteAnalysisService:
             "routes": analyzed_routes,
             "alternatives": alternatives,
         }
+
+    def _get_route_traffic(
+        self,
+        sampled_points,
+    ):
+        if not sampled_points:
+            return {
+                "success": False,
+                "traffic_level": "UNKNOWN",
+                "traffic_score": 0,
+                "congestion": 0.0,
+                "current_speed": None,
+                "free_flow_speed": None,
+                "current_travel_time": None,
+                "free_flow_travel_time": None,
+                "confidence": None,
+                "incidents": [],
+            }
+
+        traffic_results = []
+
+        for point in sampled_points:
+            try:
+                traffic = self.traffic_service.get_traffic(
+                    lat=point["lat"],
+                    lon=point["lon"],
+                )
+
+                if isinstance(traffic, dict):
+                    traffic_results.append(
+                        traffic
+                    )
+
+            except Exception as exc:
+                print(
+                    f"Traffic service unavailable: {exc}"
+                )
+
+        if not traffic_results:
+            return {
+                "success": False,
+                "traffic_level": "UNKNOWN",
+                "traffic_score": 0,
+                "congestion": 0.0,
+                "current_speed": None,
+                "free_flow_speed": None,
+                "current_travel_time": None,
+                "free_flow_travel_time": None,
+                "confidence": None,
+                "incidents": [],
+            }
+
+        valid_results = [
+            result
+            for result in traffic_results
+            if result.get("success")
+        ]
+
+        if not valid_results:
+            return {
+                "success": False,
+                "traffic_level": "UNKNOWN",
+                "traffic_score": 0,
+                "congestion": 0.0,
+                "current_speed": None,
+                "free_flow_speed": None,
+                "current_travel_time": None,
+                "free_flow_travel_time": None,
+                "confidence": None,
+                "incidents": [],
+            }
+
+        traffic_scores = [
+            result.get("traffic_score", 0)
+            for result in valid_results
+        ]
+
+        congestion_values = [
+            result.get("congestion", 0.0)
+            for result in valid_results
+        ]
+
+        current_speeds = [
+            result.get("current_speed")
+            for result in valid_results
+            if result.get("current_speed") is not None
+        ]
+
+        free_flow_speeds = [
+            result.get("free_flow_speed")
+            for result in valid_results
+            if result.get("free_flow_speed") is not None
+        ]
+
+        current_travel_times = [
+            result.get("current_travel_time")
+            for result in valid_results
+            if result.get("current_travel_time") is not None
+        ]
+
+        free_flow_travel_times = [
+            result.get("free_flow_travel_time")
+            for result in valid_results
+            if result.get("free_flow_travel_time") is not None
+        ]
+
+        confidence_values = [
+            result.get("confidence")
+            for result in valid_results
+            if result.get("confidence") is not None
+        ]
+
+        incidents = []
+
+        seen_incidents = set()
+
+        for result in valid_results:
+            for incident in result.get(
+                "incidents",
+                [],
+            ):
+                incident_key = (
+                    incident.get("id")
+                    or (
+                        incident.get("geometry", {})
+                        .get("coordinates", [])
+                    )
+                    or incident.get("description")
+                )
+
+                if incident_key in seen_incidents:
+                    continue
+
+                seen_incidents.add(
+                    incident_key
+                )
+                incidents.append(
+                    incident
+                )
+
+        average_traffic_score = round(
+            sum(traffic_scores)
+            / len(traffic_scores)
+        )
+
+        average_congestion = round(
+            sum(congestion_values)
+            / len(congestion_values),
+            3,
+        )
+
+        average_current_speed = (
+            round(
+                sum(current_speeds)
+                / len(current_speeds),
+                2,
+            )
+            if current_speeds
+            else None
+        )
+
+        average_free_flow_speed = (
+            round(
+                sum(free_flow_speeds)
+                / len(free_flow_speeds),
+                2,
+            )
+            if free_flow_speeds
+            else None
+        )
+
+        average_current_travel_time = (
+            round(
+                sum(current_travel_times)
+                / len(current_travel_times)
+            )
+            if current_travel_times
+            else None
+        )
+
+        average_free_flow_travel_time = (
+            round(
+                sum(free_flow_travel_times)
+                / len(free_flow_travel_times)
+            )
+            if free_flow_travel_times
+            else None
+        )
+
+        average_confidence = (
+            round(
+                sum(confidence_values)
+                / len(confidence_values),
+                3,
+            )
+            if confidence_values
+            else None
+        )
+
+        traffic_level = self._get_traffic_level(
+            average_traffic_score
+        )
+
+        return {
+            "success": True,
+            "traffic_level": traffic_level,
+            "traffic_score": average_traffic_score,
+            "congestion": average_congestion,
+            "current_speed": average_current_speed,
+            "free_flow_speed": average_free_flow_speed,
+            "current_travel_time": (
+                average_current_travel_time
+            ),
+            "free_flow_travel_time": (
+                average_free_flow_travel_time
+            ),
+            "confidence": average_confidence,
+            "incidents": incidents,
+            "sampled_points_count": len(
+                valid_results
+            ),
+        }
+
+    @staticmethod
+    def _get_traffic_level(
+        score: int,
+    ) -> str:
+        if score < 20:
+            return "LOW"
+
+        if score < 40:
+            return "MODERATE"
+
+        if score < 60:
+            return "HIGH"
+
+        if score < 80:
+            return "VERY_HIGH"
+
+        return "EXTREME"
 
     @staticmethod
     def _geometry_to_points(geometry):
@@ -224,7 +488,13 @@ class RouteAnalysisService:
         if len(points) <= max_points:
             return points
 
-        step = len(points) / max_points
+        if max_points == 1:
+            return [points[0]]
+
+        step = (
+            (len(points) - 1)
+            / (max_points - 1)
+        )
 
         return [
             points[int(i * step)]
