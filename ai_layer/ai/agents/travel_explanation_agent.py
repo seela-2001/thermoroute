@@ -83,7 +83,19 @@ class TravelExplanationAgent(BaseAgent):
         """
         context_dict = context.to_dict()
 
+        # Get current risk level for selected route
+        current_risk_level = "UNKNOWN"
+        if context.selected_route and context.selected_route.id in context.risk_scores:
+            current_risk_level = context.risk_scores[context.selected_route.id].risk_level
+
+        # Get current time if available
+        current_time = "now"
+        if context.trip.departure_time:
+            current_time = context.trip.departure_time
+
         prompt_data = {
+            "current_time": current_time,
+            "current_risk_level": current_risk_level,
             "recommendation": {
                 "recommended_route": context.selected_route.id if context.selected_route else None,
                 "summary": "Provide explanation for this route",
@@ -93,7 +105,7 @@ class TravelExplanationAgent(BaseAgent):
                 "risk_scores": context_dict.get("risk_scores", {}),
                 "heat": context_dict.get("heat", {}),
             },
-            "forecast": context_dict.get("forecast", []),
+            "forecast": context_dict.get("forecast", []),  # Includes time field for each entry
             "route_details": {
                 "distance_km": context.selected_route.distance_km if context.selected_route else 0,
                 "duration_min": context.selected_route.duration_min if context.selected_route else 0,
@@ -108,8 +120,10 @@ class TravelExplanationAgent(BaseAgent):
             "instructions": (
                 "Convert this structured route analysis into natural language. "
                 "Explain the recommendation clearly. "
+                "Determine if current time is good to go based on current risk level. "
+                "If not good to go, check the 12-hour forecast for LOW risk times. "
                 "Focus on what matters to the driver. "
-                "Return as valid JSON."
+                "Return as valid JSON with good_to_go and best_departure_times fields."
             ),
         }
 
@@ -135,6 +149,8 @@ class TravelExplanationAgent(BaseAgent):
                 "summary": data.get("summary", ""),
                 "details": data.get("details", []),
                 "tips": data.get("tips", []),
+                "good_to_go": data.get("good_to_go", False),
+                "best_departure_times": data.get("best_departure_times", []),
             }
 
         except json.JSONDecodeError as e:
@@ -145,6 +161,8 @@ class TravelExplanationAgent(BaseAgent):
                 "summary": "Could not generate explanation",
                 "details": [],
                 "tips": [],
+                "good_to_go": False,
+                "best_departure_times": [],
             }
 
     async def explain(
@@ -185,6 +203,8 @@ class TravelExplanationAgent(BaseAgent):
                 summary=result.get("error", "Unknown error occurred"),
                 details=[],
                 tips=["Try again later"],
+                good_to_go=False,
+                best_departure_times=[],
                 model_used=result.get("model_used"),
                 latency_ms=result.get("latency_ms"),
                 tokens_used=result.get("tokens_used"),
@@ -196,6 +216,8 @@ class TravelExplanationAgent(BaseAgent):
             summary=result.get("summary", ""),
             details=result.get("details", []),
             tips=result.get("tips", []),
+            good_to_go=result.get("good_to_go", False),
+            best_departure_times=result.get("best_departure_times", []),
             model_used=result.get("model_used"),
             latency_ms=result.get("latency_ms"),
             tokens_used=result.get("tokens_used"),

@@ -1,8 +1,3 @@
-/**
- * Risk Badge Component
- *
- * A reusable badge for displaying risk levels with consistent styling.
- */
 
 import type { RiskLevel } from '@/types/route';
 

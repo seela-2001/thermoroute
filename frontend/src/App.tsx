@@ -6,6 +6,7 @@ import { PopularRoutes } from "@/components/ui/popular-routes"
 import { FAQ } from "@/components/ui/faq-section"
 import { Footer } from "@/components/ui/footer"
 import PoweredBy from "@/components/ui/power-by"
+import { Link } from "react-router-dom"
 
 const App = () => {
   return (

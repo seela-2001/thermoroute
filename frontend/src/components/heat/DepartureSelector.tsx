@@ -1,14 +1,7 @@
-/**
- * Departure Selector Component
- *
- * An interactive time selector for choosing when to depart,
- * with visual risk indicators and smart recommendations.
- */
-
 import { motion } from 'framer-motion';
-import { Clock, Thermometer, Shield, Check, AlertTriangle } from 'lucide-react';
-import type { DepartureOption } from '@/types/route';
-import { getRiskColor, getRiskBgColor, getRiskTextColor } from '@/data/mockRoutes';
+import { Clock, Thermometer, Check, AlertTriangle } from 'lucide-react';
+import type { DepartureOption } from '@/types';
+import { getRiskColor, getRiskColorClasses } from '@/lib';
 
 interface DepartureSelectorProps {
   options: DepartureOption[];
@@ -18,6 +11,7 @@ interface DepartureSelectorProps {
 
 export function DepartureSelector({ options, selectedHour, onHourSelect }: DepartureSelectorProps) {
   const selectedOption = options[selectedHour];
+  const riskColors = getRiskColorClasses(selectedOption.riskLevel);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -26,13 +20,12 @@ export function DepartureSelector({ options, selectedHour, onHourSelect }: Depar
           <Clock className="w-5 h-5 text-blue-500" />
           When Should You Leave?
         </h3>
-        <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRiskBgColor(selectedOption.riskLevel)} ${getRiskTextColor(selectedOption.riskLevel)}`}>
-          {selectedOption.riskLevel.toUpperCase()} RISK
+        <span className={`px-3 py-1 rounded-full text-xs font-bold ${riskColors.bg} ${riskColors.text}`}>
+          {selectedOption.riskLevel} RISK
         </span>
       </div>
 
-      {/* Selected Departure Card */}
-      <div className={`p-6 ${getRiskBgColor(selectedOption.riskLevel)}`}>
+      <div className={`p-6 ${riskColors.bg}`}>
         <div className="flex items-start justify-between mb-4">
           <div>
             <p className="text-sm font-medium text-slate-600 mb-1">Best Departure Time</p>
@@ -66,13 +59,13 @@ export function DepartureSelector({ options, selectedHour, onHourSelect }: Depar
         )}
       </div>
 
-      {/* Time Options Grid */}
       <div className="p-4">
         <p className="text-sm font-medium text-slate-700 mb-3">Select Departure Time</p>
         <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
           {options.map((option, index) => {
             const isSelected = index === selectedHour;
             const isRecommended = option.recommended;
+            const optionRiskColors = getRiskColorClasses(option.riskLevel);
 
             return (
               <button
@@ -86,7 +79,6 @@ export function DepartureSelector({ options, selectedHour, onHourSelect }: Depar
                       : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
-                {/* Risk indicator bar */}
                 <div
                   className="absolute top-0 left-0 right-0 h-1 rounded-t-xl"
                   style={{ backgroundColor: getRiskColor(option.riskLevel) }}
@@ -98,7 +90,7 @@ export function DepartureSelector({ options, selectedHour, onHourSelect }: Depar
                   </span>
                   <div className="flex items-center gap-1">
                     <Thermometer className={`w-3 h-3 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
-                    <span className={`text-sm font-bold ${getRiskTextColor(option.riskLevel)}`}>
+                    <span className={`text-sm font-bold ${optionRiskColors.text}`}>
                       {option.temperature}°
                     </span>
                   </div>
@@ -115,7 +107,6 @@ export function DepartureSelector({ options, selectedHour, onHourSelect }: Depar
         </div>
       </div>
 
-      {/* Risk Legend */}
       <div className="px-4 pb-4">
         <div className="flex items-center justify-center gap-6 text-xs text-slate-500">
           <div className="flex items-center gap-1.5">

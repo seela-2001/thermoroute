@@ -1,11 +1,6 @@
-/**
- * Camera Preview Component
- *
- * Detailed view of a traffic camera with metadata and "live" preview.
- */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, MapPin, Clock, Navigation, Eye, Maximize2, ExternalLink, AlertCircle } from 'lucide-react';
+import { X, Camera, MapPin, Clock, Navigation, Eye, Maximize2, ExternalLink } from 'lucide-react';
 import type { Camera as CameraType } from '@/types/route';
 
 interface CameraPreviewProps {
@@ -32,7 +27,6 @@ export function CameraPreview({ camera, onClose }: CameraPreviewProps) {
           onClick={(e) => e.stopPropagation()}
           className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden"
         >
-          {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-200">
             <div className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-blue-600" />
@@ -46,18 +40,15 @@ export function CameraPreview({ camera, onClose }: CameraPreviewProps) {
             </button>
           </div>
 
-          {/* Camera Preview Image */}
           <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 relative">
-            {/* Simulated camera feed */}
-            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
                 <Camera className="w-16 h-16 text-slate-600 mx-auto mb-3" />
                 <p className="text-slate-500">Camera Feed</p>
               </div>
             </div>
 
-            {/* Camera overlay elements */}
-            <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
+              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
               <span className="text-white text-xs font-medium">LIVE</span>
             </div>
@@ -74,7 +65,6 @@ export function CameraPreview({ camera, onClose }: CameraPreviewProps) {
             </div>
           </div>
 
-          {/* Camera Details */}
           <div className="p-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="flex items-center gap-2">

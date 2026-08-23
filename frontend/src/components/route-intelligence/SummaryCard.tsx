@@ -1,14 +1,7 @@
-/**
- * Summary Card Component
- *
- * A prominent card that shows the key decision: WHAT SHOULD I DO?
- * This is the most important information for the user.
- */
-
 import { motion } from 'framer-motion';
-import { Play, Clock, Thermometer, Route as RouteIcon, Check, AlertTriangle } from 'lucide-react';
-import type { Route, DepartureOption } from '@/types/route';
-import { formatDistance, formatDuration, getRiskBgColor, getRiskTextColor } from '@/data/mockRoutes';
+import { Play, Clock, Thermometer, Route as RouteIcon, Check } from 'lucide-react';
+import type { Route, DepartureOption } from '@/types';
+import { formatDistance, formatDuration, getRiskColorClasses } from '@/lib';
 
 interface SummaryCardProps {
   route: Route;
@@ -18,6 +11,7 @@ interface SummaryCardProps {
 
 export function SummaryCard({ route, departure, onRouteSelect }: SummaryCardProps) {
   const isLeaveNow = departure.recommended && departure.hourOffset === 0;
+  const riskColors = getRiskColorClasses(departure.riskLevel);
 
   return (
     <motion.div
@@ -26,22 +20,20 @@ export function SummaryCard({ route, departure, onRouteSelect }: SummaryCardProp
       className={`rounded-2xl overflow-hidden border-2 ${
         isLeaveNow
           ? 'bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200'
-          : departure.riskLevel === 'high' || departure.riskLevel === 'extreme'
+          : departure.riskLevel === 'HIGH' || departure.riskLevel === 'EXTREME'
             ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200'
             : 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200'
       }`}
     >
-      {/* Header - WHAT SHOULD I DO? */}
       <div className="p-6 pb-4">
         <h2 className="text-xl font-bold text-slate-900 mb-1">What should I do?</h2>
         <p className="text-slate-600">Based on heat risk analysis and route conditions</p>
       </div>
 
-      {/* Main Action */}
-      <div className={`px-6 pb-6 ${getRiskBgColor(departure.riskLevel)}`}>
+      <div className={`px-6 pb-6 ${riskColors.bg}`}>
         <div className="flex items-start gap-4">
           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 ${
-            isLeaveNow ? 'bg-emerald-500' : departure.riskLevel === 'high' || departure.riskLevel === 'extreme' ? 'bg-amber-500' : 'bg-blue-500'
+            isLeaveNow ? 'bg-emerald-500' : departure.riskLevel === 'HIGH' || departure.riskLevel === 'EXTREME' ? 'bg-amber-500' : 'bg-blue-500'
           }`}>
             {isLeaveNow ? (
               <Play className="w-7 h-7 text-white" fill="currentColor" />
@@ -55,8 +47,8 @@ export function SummaryCard({ route, departure, onRouteSelect }: SummaryCardProp
               {isLeaveNow ? 'Leave Now' : `Wait ${departure.hourOffset} Hours`}
             </h3>
             <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-full text-sm font-bold ${getRiskBgColor(departure.riskLevel)} ${getRiskTextColor(departure.riskLevel)}`}>
-                {departure.riskLevel.toUpperCase()} HEAT RISK
+              <span className={`px-3 py-1 rounded-full text-sm font-bold ${riskColors.bg} ${riskColors.text}`}>
+                {departure.riskLevel} HEAT RISK
               </span>
               <span className="text-sm text-slate-600">
                 Expected: {departure.temperature}°F
@@ -65,7 +57,6 @@ export function SummaryCard({ route, departure, onRouteSelect }: SummaryCardProp
           </div>
         </div>
 
-        {/* Recommendation explanation */}
         <div className="mt-4 p-3 bg-white/60 backdrop-blur-sm rounded-xl">
           <p className="text-sm text-slate-700 leading-relaxed">
             {isLeaveNow
@@ -75,7 +66,6 @@ export function SummaryCard({ route, departure, onRouteSelect }: SummaryCardProp
         </div>
       </div>
 
-      {/* Route Summary */}
       <div className="p-6 bg-white border-t border-slate-100">
         <div className="flex items-center justify-between mb-4">
           <div>

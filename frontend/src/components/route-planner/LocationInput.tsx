@@ -1,11 +1,6 @@
-/**
- * Location Input Component
- *
- * A polished location input with autocomplete and clear button.
- */
 
 import { useState } from 'react';
-import { MapPin, X, Search } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LocationInputProps {

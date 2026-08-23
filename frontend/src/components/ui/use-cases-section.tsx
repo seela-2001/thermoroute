@@ -52,22 +52,18 @@ function UseCaseCard({ useCase }: UseCaseCardProps) {
           : 'border-gray-200 bg-gray-50/50'
       )}
     >
-      {/* Category Label */}
       <p className="mb-3 text-[10px] font-semibold tracking-widest text-orange-500 uppercase">
         {useCase.category}
       </p>
 
-      {/* Title */}
       <h3 className="mb-3 text-base font-semibold leading-snug text-gray-900">
         {useCase.title}
       </h3>
 
-      {/* Description */}
       <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600">
         {useCase.description}
       </p>
 
-      {/* Bottom Text */}
       <p className="text-xs italic text-gray-500">
         {useCase.bottomText}
       </p>
@@ -79,8 +75,7 @@ export function UseCasesSection() {
   return (
     <section className="w-full bg-white py-16 md:py-15">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        {/* Section Header */}
-        <div className="mb-10 md:mb-12 text-center">
+          <div className="mb-10 md:mb-12 text-center">
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl lg:text-4xl">
             How People Actually Use This
           </h2>
@@ -89,8 +84,7 @@ export function UseCasesSection() {
           </p>
         </div>
 
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {useCases.map((useCase) => (
             <UseCaseCard key={useCase.category} useCase={useCase} />
           ))}

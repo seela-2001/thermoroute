@@ -1,10 +1,5 @@
-/**
- * Decision Explanation Component
- *
- * Explains WHY the system is making a specific recommendation.
- * This is critical for user trust and understanding.
- */
 
+import { motion } from 'framer-motion';
 import { Check, AlertTriangle, Clock, Info } from 'lucide-react';
 import type { Route, Recommendation } from '@/types/route';
 
@@ -55,7 +50,6 @@ export function DecisionExplanation({ route, recommendation }: DecisionExplanati
           </div>
         )}
 
-        {/* Alternative suggestions */}
         {recommendation.alternatives && recommendation.alternatives.length > 0 && (
           <div className="mt-6 pt-4 border-t border-slate-100">
             <p className="text-sm font-semibold text-slate-700 mb-3">Other Considerations</p>
@@ -65,7 +59,7 @@ export function DecisionExplanation({ route, recommendation }: DecisionExplanati
                 <div>
                   <p className="text-sm text-slate-700">
                     <span className="font-medium">
-                      {mockRoutes.find(r => r.id === alt.routeId)?.name}
+                      Route {String.fromCharCode(65 + index)}
                     </span>
                     {': '}{alt.reason}
                   </p>
@@ -78,10 +72,3 @@ export function DecisionExplanation({ route, recommendation }: DecisionExplanati
     </div>
   );
 }
-
-// Helper to get mock routes (import from actual file in production)
-const mockRoutes = [
-  { id: 'route-a', name: 'Route A' },
-  { id: 'route-b', name: 'Route B' },
-  { id: 'route-c', name: 'Route C' },
-];

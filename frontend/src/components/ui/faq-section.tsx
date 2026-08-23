@@ -56,7 +56,6 @@ const FaqSection = React.forwardRef<HTMLElement, FaqSectionProps>(
         {...props}
       >
         <div className="mx-auto max-w-2xl px-4">
-          {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -71,7 +70,6 @@ const FaqSection = React.forwardRef<HTMLElement, FaqSectionProps>(
             )}
           </motion.div>
 
-          {/* FAQ Items */}
           <div className="space-y-2">
             {items.map((item, index) => (
               <FaqItem
@@ -83,7 +81,6 @@ const FaqSection = React.forwardRef<HTMLElement, FaqSectionProps>(
             ))}
           </div>
 
-          {/* Contact Section */}
           {contactInfo && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -112,7 +109,6 @@ const FaqSection = React.forwardRef<HTMLElement, FaqSectionProps>(
 );
 FaqSection.displayName = "FaqSection";
 
-// Internal FaqItem component
 const FaqItem = React.forwardRef<
   HTMLDivElement,
   {

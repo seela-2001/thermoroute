@@ -9,30 +9,24 @@ import bg4 from '@/components/ui/images/background (4).jpg';
 import bg5 from '@/components/ui/images/background (5).jpg';
 import bg6 from '@/components/ui/images/background (6).jpg';
 
-// ROW 1 - Uses background images 1-2 (duplicated)
 const row1Images = [
   bg1, bg2, bg1, bg2, bg1, bg2,
 ];
 
-// ROW 2 - Uses background images 3-4 (duplicated)
 const row2Images = [
   bg3, bg4, bg3, bg4, bg3, bg4,
 ];
 
-// ROW 3 - Uses background images 5-6 (duplicated)
 const row3Images = [
   bg5, bg6, bg5, bg6, bg5, bg6,
 ];
 
-// ROW 4 - Uses all 6 background images
 const row4Images = [
   bg1, bg2, bg3, bg4, bg5, bg6,
 ];
 
-// Card width variants for visual variety
 const cardWidths = ['w-36', 'w-44', 'w-40', 'w-48', 'w-38', 'w-42'];
 
-// Row configuration with local background images and alternating directions
 const rows = [
   { images: row1Images, direction: 'left' },
   { images: row2Images, direction: 'right' },
@@ -40,7 +34,6 @@ const rows = [
   { images: row4Images, direction: 'right' },
 ];
 
-// Helper to duplicate images for seamless animation
 const createAnimatedSet = (images: string[], count = 3) => {
   const set: string[] = [];
   for (let i = 0; i < count; i++) {
@@ -70,10 +63,8 @@ function Hero() {
 
   return (
     <div className="relative w-full bg-white overflow-hidden">
-      {/* Full Hero Background Layer - Image Mosaic */}
+      {}
       <div className="absolute inset-0 z-0 flex flex-col pointer-events-none overflow-hidden">
-
-        {/* Row 1 - Long-Distance Roads - Moves LEFT */}
         <div className="h-1/4 w-full overflow-hidden">
           <div className="flex animate-scroll-left flex-nowrap h-full">
             {createAnimatedSet(rows[0].images, 4).map((src, index) => (
@@ -92,7 +83,6 @@ function Hero() {
           </div>
         </div>
 
-        {/* Row 2 - Extreme Heat - Moves RIGHT */}
         <div className="h-1/4 w-full overflow-hidden">
           <div className="flex animate-scroll-right flex-nowrap h-full">
             {createAnimatedSet(rows[1].images, 4).map((src, index) => (
@@ -111,7 +101,6 @@ function Hero() {
           </div>
         </div>
 
-        {/* Row 3 - Weather + Road Conditions - Moves LEFT */}
         <div className="h-1/4 w-full overflow-hidden">
           <div className="flex animate-scroll-left flex-nowrap h-full">
             {createAnimatedSet(rows[2].images, 4).map((src, index) => (
@@ -130,7 +119,6 @@ function Hero() {
           </div>
         </div>
 
-        {/* Row 4 - Routes + Infrastructure - Moves RIGHT */}
         <div className="h-1/4 w-full overflow-hidden">
           <div className="flex animate-scroll-right flex-nowrap h-full">
             {createAnimatedSet(rows[3].images, 4).map((src, index) => (
@@ -149,10 +137,8 @@ function Hero() {
           </div>
         </div>
 
-        {/* Left Purple Gradient Overlay - Full Height */}
         <div className="absolute inset-0 bg-gradient-to-r from-purple-100/60 via-purple-50/40 to-transparent pointer-events-none" />
 
-        {/* Subtle White Fade Overlay */}
         <div className="absolute inset-0 bg-white/20 pointer-events-none" />
 
         <style>{`
@@ -183,7 +169,7 @@ function Hero() {
         `}</style>
       </div>
 
-      {/* Hero Content - Positioned Above Background */}
+      {}
       <div className="container mx-auto relative z-10 pointer-events-none">
         <div className="flex gap-8 py-20 lg:py-40 items-center justify-center flex-col">
           <div className="flex gap-4 flex-col pointer-events-auto">

@@ -1,16 +1,9 @@
-/**
- * Mock Route Data
- *
- * Realistic mock data for the Houston, TX to Dallas, TX route.
- * This simulates what will eventually come from the FortyGuard/route APIs.
- */
 
 import type { Route, Location, RouteWaypoint, HeatRiskPoint, DepartureOption, Recommendation, Camera, Stop, TripPlan, StopType } from '@/types/route';
 
 const now = new Date();
 const currentHour = now.getHours();
 
-// Create heat risk points for the next 12 hours
 const createHeatRiskPoints = (baseTemp: number, peakHour: number, riskPattern: ('low' | 'moderate' | 'high' | 'extreme')[]): HeatRiskPoint[] => {
   return riskPattern.map((risk, index) => {
     const timestamp = new Date(now.getTime() + index * 60 * 60 * 1000);
@@ -27,7 +20,6 @@ const createHeatRiskPoints = (baseTemp: number, peakHour: number, riskPattern: (
   });
 };
 
-// Locations
 const houston: Location = {
   name: 'Houston, TX',
   coordinates: { lat: 29.7604, lng: -95.3698 },
@@ -42,7 +34,6 @@ const dallas: Location = {
   state: 'TX',
 };
 
-// Cameras along routes
 const cameras: Camera[] = [
   {
     id: 'cam-001',
@@ -156,18 +147,7 @@ const cameras: Camera[] = [
 
 export { cameras };
 
-// ============================================
-// TRIP PLANNING & STOP INTELLIGENCE
-// ============================================
 
-/**
- * Generate intelligent stops along a route based on trip duration.
- * This function creates stop recommendations that adapt to trip length:
- * - < 4 hours: Minimal stops, optional
- * - 4-7 hours: A few recommended stops
- * - 7-10 hours: Active fuel/rest stop recommendations
- * - 10+ hours: Structured trip-stop plan
- */
 export function generateTripPlan(
   routeId: string,
   duration: number, // minutes
@@ -177,34 +157,28 @@ export function generateTripPlan(
 ): TripPlan {
   const hours = duration / 60;
 
-  // Determine stop strategy based on trip length
   let stopStrategy: TripPlan['stopStrategy'];
   let recommendedStops: Stop[] = [];
   let allStops: Stop[] = [];
 
   if (hours < 4) {
     stopStrategy = 'none';
-    // No mandatory stops for short trips
     recommendedStops = [];
     allStops = generateAllStops(routeId, distance, duration, 0.3); // Fewer stops
   } else if (hours < 7) {
     stopStrategy = 'optional';
-    // 1-2 recommended stops
     recommendedStops = generateRecommendedStops(routeId, distance, duration, 2, heatRiskPoints, departureHourOffset);
     allStops = generateAllStops(routeId, distance, duration, 0.5);
   } else if (hours < 10) {
     stopStrategy = 'recommended';
-    // 2-3 strategic stops
     recommendedStops = generateRecommendedStops(routeId, distance, duration, 3, heatRiskPoints, departureHourOffset);
     allStops = generateAllStops(routeId, distance, duration, 0.7);
   } else {
     stopStrategy = 'structured';
-    // 3-4 structured stops for very long trips
     recommendedStops = generateRecommendedStops(routeId, distance, duration, 4, heatRiskPoints, departureHourOffset);
     allStops = generateAllStops(routeId, distance, duration, 1);
   }
 
-  // Calculate summary
   const summary = {
     totalStops: recommendedStops.length,
     estimatedTotalStopTime: calculateTotalStopTime(recommendedStops),
@@ -223,13 +197,6 @@ export function generateTripPlan(
   };
 }
 
-/**
- * Generate recommended stops at strategic points along the route.
- * Spacing logic:
- * - Fuel stop: ~2-3 hours into trip (or earlier if long trip)
- * - Meal/Rest stop: Around midpoint (4-5 hours)
- * - Additional stops: Every 2-3 hours for very long trips
- */
 function generateRecommendedStops(
   routeId: string,
   distance: number,
@@ -241,14 +208,12 @@ function generateRecommendedStops(
   const stops: Stop[] = [];
   const hours = duration / 60;
 
-  // Find highest heat risk period during the trip
   const tripHeatRisk = heatRiskPoints.slice(0, Math.min(Math.ceil(hours), 12));
   const highestRiskHour = tripHeatRisk.reduce((max, point, idx) =>
     getRiskSeverity(point.riskLevel) > getRiskSeverity(tripHeatRisk[max].riskLevel) ? idx : max,
     0
   );
 
-  // Stop 1: Fuel stop (if trip is 4+ hours)
   if (hours >= 4 && maxStops >= 1) {
     const fuelStopTime = Math.min(135, duration * 0.25); // ~2h 15m, but max 25% of trip
     const fuelStopDistance = (fuelStopTime / duration) * distance;
@@ -272,7 +237,6 @@ function generateRecommendedStops(
     }));
   }
 
-  // Stop 2: Meal/Rest stop around midpoint (if trip is 5+ hours)
   if (hours >= 5 && maxStops >= 2) {
     const mealStopTime = duration * 0.5; // Midpoint
     const mealStopDistance = distance * 0.5;
@@ -296,7 +260,6 @@ function generateRecommendedStops(
     }));
   }
 
-  // Stop 3: Second fuel/short break (if trip is 7+ hours)
   if (hours >= 7 && maxStops >= 3) {
     const fuelStopTime = duration * 0.75; // 75% of trip
     const fuelStopDistance = distance * 0.75;
@@ -320,7 +283,6 @@ function generateRecommendedStops(
     }));
   }
 
-  // Stop 4: Additional rest for very long trips (10+ hours)
   if (hours >= 10 && maxStops >= 4) {
     const restStopTime = duration * 0.4; // Before midpoint
     const restStopDistance = distance * 0.4;
@@ -339,13 +301,9 @@ function generateRecommendedStops(
     }));
   }
 
-  // Sort by time
   return stops.sort((a, b) => a.estimatedArrivalTime - b.estimatedArrivalTime);
 }
 
-/**
- * Generate all available stops along the route (for "view all" feature)
- */
 function generateAllStops(
   routeId: string,
   distance: number,
@@ -360,7 +318,6 @@ function generateAllStops(
     const stopTime = duration * progress;
     const stopDistance = distance * progress;
 
-    // Vary stop types
     const stopType: StopType = ['fuel', 'rest', 'meal', 'fuel', 'rest'][i % 5];
     const isRecommended = false;
 
@@ -380,9 +337,6 @@ function generateAllStops(
   return stops;
 }
 
-/**
- * Create a Stop object
- */
 function createStop(params: {
   id: string;
   type: StopType;
@@ -400,7 +354,6 @@ function createStop(params: {
     name: params.name,
     type: params.type,
     location: {
-      // Mock location along I-45 between Houston and Dallas
       lat: 29.76 + (params.distanceFromOrigin / 239.3) * (32.78 - 29.76),
       lng: -95.37 + (params.distanceFromOrigin / 239.3) * (-96.80 + 95.37),
     },
@@ -414,9 +367,6 @@ function createStop(params: {
   };
 }
 
-/**
- * Get stop name based on type and index
- */
 function getStopName(type: StopType, index: number): string {
   const names: Record<StopType, string[]> = {
     fuel: ['Shell', 'Exxon', 'Chevron', 'BP', 'Love\'s', 'Pilot', 'Flying J', 'Sheetz', 'Kum & Go', 'QuikTrip'],
@@ -429,9 +379,6 @@ function getStopName(type: StopType, index: number): string {
   return typeNames[index % typeNames.length];
 }
 
-/**
- * Get typical services for a stop type
- */
 function getServicesForType(type: StopType): string[] {
   const services: Record<StopType, string[]> = {
     fuel: ['fuel'],
@@ -443,9 +390,6 @@ function getServicesForType(type: StopType): string[] {
   return services[type] || [];
 }
 
-/**
- * Calculate total estimated stop time in minutes
- */
 function calculateTotalStopTime(stops: Stop[]): number {
   return stops.reduce((total, stop) => {
     switch (stop.type) {
@@ -459,9 +403,6 @@ function calculateTotalStopTime(stops: Stop[]): number {
   }, 0);
 }
 
-/**
- * Get numeric severity for risk level (for comparison)
- */
 function getRiskSeverity(risk: string): number {
   const severity: Record<string, number> = {
     'low': 1,
@@ -472,7 +413,6 @@ function getRiskSeverity(risk: string): number {
   return severity[risk] || 0;
 }
 
-// Routes
 export const mockRoutes: Route[] = [
   {
     id: 'route-a',
@@ -637,7 +577,6 @@ export const mockRoutes: Route[] = [
   },
 ];
 
-// Departure options for next 12 hours
 export const mockDepartureOptions: DepartureOption[] = [
   { hourOffset: 0, time: 'Now', riskLevel: 'low', temperature: 85, recommended: true, reason: 'Best current conditions' },
   { hourOffset: 1, time: '+1 Hour', riskLevel: 'low', temperature: 87, recommended: false },
@@ -653,7 +592,6 @@ export const mockDepartureOptions: DepartureOption[] = [
   { hourOffset: 11, time: '+11 Hours', riskLevel: 'low', temperature: 84, recommended: false },
 ];
 
-// Recommendation
 export const mockRecommendation: Recommendation = {
   action: 'leave_now',
   routeId: 'route-a',
@@ -675,7 +613,6 @@ export const mockRecommendation: Recommendation = {
   ],
 };
 
-// Helper functions
 export function getRouteById(id: string): Route | undefined {
   return mockRoutes.find(r => r.id === id);
 }
@@ -729,13 +666,7 @@ export function getRiskTextColor(risk: string): string {
   }
 }
 
-// ============================================
-// TRIP PLAN HELPERS
-// ============================================
 
-/**
- * Format stop time for display (e.g., "2h 15m into trip")
- */
 export function formatStopTime(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
@@ -744,9 +675,6 @@ export function formatStopTime(minutes: number): string {
   return `${hours}h ${mins}m into trip`;
 }
 
-/**
- * Get stop type icon and label
- */
 export function getStopTypeInfo(type: string): { icon: string; label: string; color: string } {
   const types: Record<string, { icon: string; label: string; color: string }> = {
     fuel: { icon: '⛽', label: 'Fuel stop', color: 'text-blue-600' },
@@ -758,9 +686,6 @@ export function getStopTypeInfo(type: string): { icon: string; label: string; co
   return types[type] || types.fuel;
 }
 
-/**
- * Get trip strategy description
- */
 export function getTripStrategyDescription(strategy: string): string {
   const descriptions: Record<string, string> = {
     none: 'Short trip - no mandatory stops needed.',
@@ -771,9 +696,6 @@ export function getTripStrategyDescription(strategy: string): string {
   return descriptions[strategy] || '';
 }
 
-/**
- * Get trip length category
- */
 export function getTripLengthCategory(duration: number): 'short' | 'medium' | 'long' | 'very-long' {
   const hours = duration / 60;
   if (hours < 4) return 'short';

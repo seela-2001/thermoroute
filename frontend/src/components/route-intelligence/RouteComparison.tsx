@@ -1,14 +1,7 @@
-/**
- * Route Comparison Visualization
- *
- * A sophisticated visualization showing how each route performs
- * across the next 12 hours in terms of heat risk.
- */
-
 import { motion } from 'framer-motion';
 import { Thermometer, Clock, Route as RouteIcon, ArrowRight } from 'lucide-react';
 import type { Route } from '@/types/route';
-import { getRiskColor, getRiskBgColor, getRiskTextColor, formatDuration, formatDistance } from '@/data/mockRoutes';
+import { getRiskColor, getRiskColorClasses, formatDuration, formatDistance } from '@/lib';
 
 interface RouteComparisonProps {
   routes: Route[];
@@ -30,7 +23,6 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
         </p>
       </div>
 
-      {/* Comparison Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -68,7 +60,6 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
                     isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'
                   }`}
                 >
-                  {/* Route Name */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       {isSelected && (
@@ -86,20 +77,18 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
                     </div>
                   </td>
 
-                  {/* Distance */}
                   <td className="px-4 py-3 text-center text-sm text-slate-600">
                     {formatDistance(route.distance)}
                   </td>
 
-                  {/* Duration */}
                   <td className="px-4 py-3 text-center text-sm text-slate-600">
                     {formatDuration(route.duration)}
                   </td>
 
-                  {/* Hourly Risk Cells */}
                   {route.heatRisk.map((point, hourIndex) => {
                     const isSelectedHour = hourIndex === selectedHour;
                     const isSelectedRouteAndHour = isSelected && isSelectedHour;
+                    const riskColors = getRiskColorClasses(point.riskLevel);
 
                     return (
                       <td
@@ -112,7 +101,7 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
                           }`}
                           style={{ backgroundColor: `${getRiskColor(point.riskLevel)}20` }}
                         >
-                          <span className={`text-xs font-bold ${getRiskTextColor(point.riskLevel)}`}>
+                          <span className={`text-xs font-bold ${riskColors.text}`}>
                             {point.temperature}°
                           </span>
                         </div>
@@ -126,7 +115,6 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
         </table>
       </div>
 
-      {/* Summary Stats */}
       <div className="p-4 bg-slate-50 border-t border-slate-100">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
@@ -142,10 +130,17 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
             <p className="text-xs text-slate-500">Total Cameras</p>
           </div>
           <div className="text-center">
-            <p className={`text-2xl font-bold ${getRiskTextColor(routes[0].currentRisk)}`}>
-              {routes[0].currentRisk.toUpperCase()}
-            </p>
-            <p className="text-xs text-slate-500">Current Risk</p>
+            {(() => {
+              const riskColors = getRiskColorClasses(routes[0]?.currentRisk || 'LOW');
+              return (
+                <>
+                  <p className={`text-2xl font-bold ${riskColors.text}`}>
+                    {routes[0]?.currentRisk || 'N/A'}
+                  </p>
+                  <p className="text-xs text-slate-500">Current Risk</p>
+                </>
+              );
+            })()}
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-slate-900">
