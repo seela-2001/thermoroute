@@ -1,0 +1,70 @@
+name: Backend Test
+
+on: 
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches:
+      - main
+      - dev-branch
+    paths:
+      - 'backend/**'
+
+permissions:
+  contents: read
+    
+jobs:
+  test:
+    name: Run backend tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.DB_NAME }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Create .env file
+        run: |
+         cat << 'EOF' > .env
+         ${{ secrets.ENV_FILE }}
+         EOF
+
+      - name: Django checks
+        run: uv run python manage.py check
+
+      - name: Run tests
+        run: uv run python manage.py test
