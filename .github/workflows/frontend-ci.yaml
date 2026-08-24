@@ -6,12 +6,12 @@ on:
       - main
       - frontend
     paths:
-      - 'backend/**'
+      - 'frontend/**'
   pull_request:
     branches:
       - main
     paths:
-      - 'backend/**'
+      - 'frontend/**'
 
 permissions:
   contents: read
