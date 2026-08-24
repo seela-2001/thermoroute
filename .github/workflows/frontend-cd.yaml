@@ -1,8 +1,8 @@
-name: Backend Build
+name: Frontend Build
 
 on:
   workflow_run:
-    workflows: ['Backend Test']
+    workflows: ['Frontend test']
     types: 
       - completed
     branches:
@@ -15,27 +15,28 @@ permissions:
 jobs:
   build-and-push:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    name: Build and Push backend image
+    name: Build and Push frontend image
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Check Repository
+        uses: actions/action@v4
         with: 
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Login to docker hub
         uses: docker/login-action@v3
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }} 
+          username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push backend image
+      - name: build-and-push-frontend
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./backend/Dockerfile
+          file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:${{ github.event.workflow_run.head_sha }}
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:latest
+          tags:
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ github.event.workflow_run.head_sha}}
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:latest
+      
