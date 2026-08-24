@@ -11,7 +11,7 @@ class LocationService:
     DEFAULT_LIMIT = 5
     DEFAULT_TIMEOUT = 5
     DEFAULT_LANGUAGE = "en"
-    DEFAULT_COUNTRY = "eg"
+    DEFAULT_COUNTRY = "us"
 
     def __init__(
         self,
