@@ -69,7 +69,11 @@ export async function withCache<T>(
         return entry.data;
       }
     }
-  } catch {
+  } catch (error) {
+    // Ignore cache read errors
+    if (error instanceof Error && error.name !== 'SecurityError') {
+      console.warn('Cache read error:', error.message);
+    }
   }
 
   const data = await fetcher();
@@ -79,7 +83,9 @@ export async function withCache<T>(
       data,
       timestamp: Date.now(),
     } as CacheEntry<T>));
-  } catch {
+  } catch (error) {
+    // Ignore cache write errors (e.g., quota exceeded)
+    console.warn('Cache write error:', error instanceof Error ? error.message : 'Unknown error');
   }
 
   return data;

@@ -1,5 +1,4 @@
 
-import { useState } from 'react';
 import { MapPin, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -7,10 +6,10 @@ interface LocationInputProps {
   label: string;
   placeholder: string;
   value: string;
-  onChange: (value: string) => onChange;
+  onChange: (value: string) => void;
   onClear: () => void;
-  suggestions: Array<{ city: string; state: string }>;
-  onSuggestionSelect: (city: { city: string; state: string }) => void;
+  suggestions: Array<{ city: string; state: string; original: { lat: number; lon: number; name: string; city: string; state: string } }>;
+  onSuggestionSelect: (city: { city: string; state: string }, original: { lat: number; lon: number; name: string; city: string; state: string }) => void;
   showSuggestions: boolean;
   onSuggestionsToggle: (show: boolean) => void;
 }
@@ -38,7 +37,6 @@ export function LocationInput({
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onFocus={() => onSuggestionsToggle(true)}
           onBlur={() => setTimeout(() => onSuggestionsToggle(false), 200)}
           className="w-full pl-12 pr-12 py-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-slate-900 placeholder:text-slate-400"
         />
@@ -69,8 +67,8 @@ export function LocationInput({
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => {
-                  onSuggestionSelect(city);
+                onMouseDown={() => {
+                  onSuggestionSelect({ city: city.city, state: city.state }, city.original);
                   onSuggestionsToggle(false);
                 }}
                 className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors flex items-center gap-3 border-b border-slate-100 last:border-0"

@@ -8,7 +8,7 @@ interface DecisionExplanationProps {
   recommendation: Recommendation;
 }
 
-export function DecisionExplanation({ route, recommendation }: DecisionExplanationProps) {
+export function DecisionExplanation({ recommendation }: DecisionExplanationProps) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <div className="p-4 border-b border-slate-100">

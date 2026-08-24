@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Play, Clock, Thermometer, Route as RouteIcon, Check } from 'lucide-react';
-import type { Route, DepartureOption } from '@/types';
+import type { Route, DepartureOption } from '@/types/route';
 import { formatDistance, formatDuration, getRiskColorClasses } from '@/lib';
 
 interface SummaryCardProps {

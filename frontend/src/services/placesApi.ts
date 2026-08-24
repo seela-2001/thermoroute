@@ -34,7 +34,7 @@ export async function getAutocompleteSuggestions(
       return [];
     }
 
-    return data.results.map((item: any) => ({
+    return data.results.map((item: { formatted?: string; name?: string; lat: number; lon: number; city?: string; state?: string; state_name?: string; country?: string }) => ({
       place_id: item.formatted || item.name || String(item.lat),
       display_name: item.formatted || item.name,
       lat: item.lat,

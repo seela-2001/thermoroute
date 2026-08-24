@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { PhoneCall } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import bg1 from '@/components/ui/images/background (1).jpg';
 import bg2 from '@/components/ui/images/background (2).jpg';
 import bg3 from '@/components/ui/images/background (3).jpg';
@@ -43,7 +42,6 @@ const createAnimatedSet = (images: string[], count = 3) => {
 };
 
 function Hero() {
-  const navigate = useNavigate();
   const [titleNumber, setTitleNumber] = useState(0);
   const titles = useMemo(
     () => ["Safer.", "Cooler", "Smarter"],

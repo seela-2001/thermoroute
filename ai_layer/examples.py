@@ -1,19 +1,11 @@
-"""
-Usage Examples for HeatOps AI Layer
-
-This file demonstrates how to use the library with real API data.
-"""
 import sys
 import pathlib
 import os
 
-# Make the repo root importable regardless of where Jupyter launched from
 sys.path.insert(0, str(pathlib.Path.cwd().parent))
 
 from dotenv import load_dotenv
 load_dotenv(pathlib.Path.cwd().parent / '.env')
-
-# ==================== EXAMPLE 1: FortyGuard Real Data ====================
 
 print("=" * 60)
 print("Example 1: FortyGuard Service with Real Data")
@@ -21,8 +13,6 @@ print("=" * 60)
 
 from ai import FortyGuardService
 
-# Initialize FortyGuard client
-# Will automatically load FORTYGUARD_API_KEY from .env
 client = FortyGuardService()
 
 print(f'Base URL : {client.base_url}')
@@ -32,8 +22,6 @@ print(f'Configured: {client.is_configured()}')
 print()
 
 if client.is_configured():
-    # Get real heat data for a location
-    # Note: Use a historical date since current date may not have data yet
     try:
         heat_data = client.get_heat_data(
             lat=40.7128,
@@ -60,8 +48,6 @@ else:
     print(f"Mock Risk Level: {mock_data.risk_level}")
 
 
-# ==================== EXAMPLE 2: Route Heat Data ====================
-
 print("\n" + "=" * 60)
 print("Example 2: Get Heat Data for a Route")
 print("=" * 60)
@@ -73,7 +59,6 @@ route_geometry = [
 ]
 
 if client.is_configured():
-    # Use historical date for real data
     route_heat = client.get_route_heat(
         route_geometry,
         start_date='2024-07-15',
@@ -88,8 +73,6 @@ else:
     print("Skipping - API key not configured")
 
 
-# ==================== EXAMPLE 3: OpenRouter Provider ====================
-
 print("\n" + "=" * 60)
 print("Example 3: OpenRouter Provider Configuration")
 print("=" * 60)
@@ -97,7 +80,6 @@ print("=" * 60)
 from ai import OpenRouterProvider
 from ai.providers.base import LLMConfig
 
-# Check for API key
 if os.getenv("OPENROUTER_API_KEY"):
     provider = OpenRouterProvider()
     print(f"Provider: {provider}")
@@ -109,15 +91,12 @@ else:
     print("OPENROUTER_API_KEY not configured")
 
 
-# ==================== EXAMPLE 4: Config from Environment ====================
-
 print("\n" + "=" * 60)
 print("Example 4: Configuration from Environment Variables")
 print("=" * 60)
 
 from thermoroute.ai_layer.ai.config import Config, RiskWeights, OptimizationWeights
 
-# Create config from environment variables
 config = Config.from_env()
 
 print("Risk Weights:")
@@ -146,14 +125,10 @@ print(f"  Max Distance: {config.normalization.distance_max}km")
 print(f"  Max Duration: {config.normalization.duration_max}min")
 
 
-# ==================== EXAMPLE 5: Using Heat or Mock ====================
-
 print("\n" + "=" * 60)
 print("Example 5: Get Heat or Mock (Automatic Fallback)")
 print("=" * 60)
 
-# This will use real data if configured, otherwise mock
-# Use historical date for real data
 heat_data = client.get_heat_or_mock(
     lat=40.7128,
     lon=-74.0060,

@@ -1,20 +1,13 @@
-"""
-Configuration Management
-Central configuration for weights and thresholds.
-All values can be overridden via environment variables.
-"""
 import os
 from dataclasses import dataclass
 from typing import ClassVar, Optional
 from dotenv import load_dotenv
 import pathlib
 
-# Load environment variables from parent directory .env (for Jupyter/notebook usage)
 load_dotenv(pathlib.Path.cwd().parent / '.env' if pathlib.Path.cwd().parent.exists() else '.env')
 
 
 def get_env_float(key: str, default: float) -> float:
-    """Get float from environment or return default."""
     try:
         return float(os.getenv(key, default))
     except (ValueError, TypeError):
@@ -22,7 +15,6 @@ def get_env_float(key: str, default: float) -> float:
 
 
 def get_env_int(key: str, default: int) -> int:
-    """Get int from environment or return default."""
     try:
         return int(os.getenv(key, default))
     except (ValueError, TypeError):
@@ -31,7 +23,6 @@ def get_env_int(key: str, default: int) -> int:
 
 @dataclass
 class RiskWeights:
-    """Weights for risk calculation. Must sum to 100."""
     temperature: float
     heat_index: float
     humidity: float
@@ -44,7 +35,6 @@ class RiskWeights:
 
     @classmethod
     def from_env(cls) -> 'RiskWeights':
-        """Create from environment variables."""
         return cls(
             temperature=get_env_float("RISK_WEIGHT_TEMPERATURE", 30.0),
             heat_index=get_env_float("RISK_WEIGHT_HEAT_INDEX", 35.0),
@@ -55,7 +45,6 @@ class RiskWeights:
 
 @dataclass
 class OptimizationWeights:
-    """Weights for route optimization. Must sum to 100."""
     distance: float
     duration: float
     heat_risk: float
@@ -68,7 +57,6 @@ class OptimizationWeights:
 
     @classmethod
     def from_env(cls) -> 'OptimizationWeights':
-        """Create from environment variables."""
         return cls(
             distance=get_env_float("OPTIM_WEIGHT_DISTANCE", 20.0),
             duration=get_env_float("OPTIM_WEIGHT_DURATION", 20.0),
@@ -79,7 +67,6 @@ class OptimizationWeights:
 
 @dataclass
 class RiskThresholds:
-    """Thresholds for risk level classification."""
     EXTREME: int
     VERY_HIGH: int
     HIGH: int
@@ -87,7 +74,6 @@ class RiskThresholds:
 
     @classmethod
     def from_env(cls) -> 'RiskThresholds':
-        """Create from environment variables."""
         return cls(
             EXTREME=get_env_int("THRESHOLD_EXTREME", 80),
             VERY_HIGH=get_env_int("THRESHOLD_VERY_HIGH", 60),
@@ -98,7 +84,6 @@ class RiskThresholds:
 
 @dataclass
 class NormalizationRanges:
-    """Normalization ranges for converting values to 0-100 scale."""
     temperature_max: float
     heat_index_max: float
     aqi_max: float
@@ -108,7 +93,6 @@ class NormalizationRanges:
 
     @classmethod
     def from_env(cls) -> 'NormalizationRanges':
-        """Create from environment variables."""
         return cls(
             temperature_max=get_env_float("NORM_MAX_TEMPERATURE", 50.0),
             heat_index_max=get_env_float("NORM_MAX_HEAT_INDEX", 55.0),
@@ -121,7 +105,6 @@ class NormalizationRanges:
 
 @dataclass
 class Config:
-    """Main configuration class."""
     risk_weights: RiskWeights
     optimization_weights: OptimizationWeights
     normalization: NormalizationRanges
@@ -129,7 +112,6 @@ class Config:
 
     @classmethod
     def from_env(cls) -> 'Config':
-        """Create all config from environment variables."""
         return cls(
             risk_weights=RiskWeights.from_env(),
             optimization_weights=OptimizationWeights.from_env(),
@@ -139,7 +121,6 @@ class Config:
 
     @classmethod
     def default(cls) -> 'Config':
-        """Create with hardcoded defaults."""
         return cls(
             risk_weights=RiskWeights(30.0, 35.0, 15.0, 20.0),
             optimization_weights=OptimizationWeights(20.0, 20.0, 40.0, 20.0),
