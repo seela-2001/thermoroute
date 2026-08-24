@@ -287,6 +287,10 @@ class TravelExplanationOutput:
     details: list[str]
     tips: list[str]
 
+    # Travel timing decision
+    good_to_go: bool = False  # Whether current time is safe to travel
+    best_departure_times: list[str] = field(default_factory=list)  # Times with LOW risk in 12-hr window
+
     # Observability
     model_used: Optional[str] = None
     latency_ms: Optional[float] = None
@@ -300,6 +304,8 @@ class TravelExplanationOutput:
             "summary": self.summary,
             "details": self.details,
             "tips": self.tips,
+            "good_to_go": self.good_to_go,
+            "best_departure_times": self.best_departure_times,
             "model_used": self.model_used,
             "latency_ms": self.latency_ms,
             "tokens_used": self.tokens_used,
