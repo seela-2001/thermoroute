@@ -1,6 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny
 from .serializers import HeatAnalysisRequestSerializer
 from .services.heat_analysis_services import HeatAnalysisService
 
@@ -9,6 +10,8 @@ class HeatAnalysisAPIView(APIView):
     """
     Analyze heat risk for a route geometry.
     """
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = HeatAnalysisRequestSerializer(
