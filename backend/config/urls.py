@@ -22,3 +22,5 @@ urlpatterns = [
     path("api/heat/", include("heat.urls")),
     path("api/routes/", include("routes.urls")),
 ]
+
+
