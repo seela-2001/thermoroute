@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - Frontend
+      - frontend
     paths:
       - 'backend/**'
   pull_request:
