@@ -63,6 +63,8 @@ export interface WeatherData {
   time?: string;
   temperature?: number;
   feels_like?: number;
+  apparent_temperature?: number;
+  heat_index?: number;
   humidity?: number;
   precipitation?: number;
   wind_speed?: number;
@@ -87,7 +89,7 @@ export interface AnalyzedRoute {
     traffic_level?: string;
     traffic_score?: number;
     congestion?: number;
-    incidents?: any[];
+    incidents?: { type?: string; description?: string; location?: string }[];
   };
 }
 
@@ -115,6 +117,7 @@ export interface AutocompleteResult {
   name: string;
   city: string;
   state: string;
+  state_name?: string;
   country?: string;
   lat: number;
   lon: number;
@@ -201,7 +204,18 @@ export async function searchLocations(
     }
 
     // Transform backend response to frontend format
-    const results: AutocompleteResult[] = (data.results || []).map((r: any) => ({
+    const results: AutocompleteResult[] = (data.results || []).map((r: {
+      name?: string;
+      formatted?: string;
+      city?: string;
+      state?: string;
+      state_name?: string;
+      country_code?: string;
+      lat: number;
+      lon: number;
+      result_type?: string;
+      confidence?: number;
+    }) => ({
       name: r.name || r.formatted,
       city: r.city || r.name || '',
       state: r.state || r.state_name || '',

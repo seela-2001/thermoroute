@@ -1,9 +1,3 @@
-"""
-HeatOps Core Recommendation Service
-Main entry point for route recommendations.
-
-This is the deterministic core that can be consumed by any frontend/backend.
-"""
 from dataclasses import dataclass
 from typing import Optional
 
@@ -23,7 +17,6 @@ import json
 
 
 class RouteProvider:
-    """Provider for route data (placeholder - integrate with your route API)."""
 
     def get_routes(
         self,
@@ -32,21 +25,6 @@ class RouteProvider:
         temperature: float,
         humidity: float
     ) -> list[Route]:
-        """
-        Get available routes with weather data.
-
-        Replace this with actual API integration (OSRM, Mapbox, etc.)
-
-        Args:
-            origin: Starting location
-            destination: Ending location
-            temperature: Base temperature (for mock data)
-            humidity: Base humidity (for mock data)
-
-        Returns:
-            List of Route objects with segment data
-        """
-        # Mock implementation - replace with real API
         return [
             Route(
                 id="A",
@@ -85,12 +63,6 @@ class RouteProvider:
 
 
 class RouteRecommendationService:
-    """
-    Main service for route recommendations.
-
-    Single entry point coordinating all deterministic services.
-    This core works without any AI/LLM - AI is optional enhancement.
-    """
 
     def __init__(
         self,
@@ -99,15 +71,6 @@ class RouteRecommendationService:
         use_llm: bool = False,
         llm_api_key: Optional[str] = None
     ):
-        """
-        Initialize route recommendation service.
-
-        Args:
-            config: Configuration weights and thresholds
-            route_provider: Route data provider (uses mock if not provided)
-            use_llm: Whether to use LLM for explanations (requires llm_api_key)
-            llm_api_key: OpenRouter API key for AI explanations
-        """
         self.config = config or Config.default()
         self.route_provider = route_provider or RouteProvider()
         self.risk_calculator = RiskCalculator(self.config)
@@ -116,17 +79,7 @@ class RouteRecommendationService:
         self.use_llm = use_llm
 
     def get_recommendation(self, request: RecommendationRequest) -> RecommendationResponse:
-        """
-        Get route recommendation with heat analysis.
-
-        Args:
-            request: Recommendation request with origin, destination, weather
-
-        Returns:
-            Complete recommendation response with route, heat analysis, and explanation
-        """
         try:
-            # Step 1: Get routes
             routes = self.route_provider.get_routes(
                 request.origin,
                 request.destination,
@@ -134,7 +87,6 @@ class RouteRecommendationService:
                 request.humidity
             )
 
-            # Step 2: Analyze heat risk for each route
             heat_results = {}
             for route in routes:
                 heat_result = self.risk_calculator.analyze_route(
@@ -143,7 +95,6 @@ class RouteRecommendationService:
                 )
                 heat_results[route.id] = heat_result
 
-            # Step 3: Optimize route selection
             routes_data = [
                 {
                     "id": r.id,
@@ -160,7 +111,6 @@ class RouteRecommendationService:
                 routes_data
             )
 
-            # Step 4: Generate explanation (template or LLM)
             best_heat = heat_results[optimization_result.recommended_route_id]
             ai_result = self.explainer.generate_recommendation(
                 route_id=optimization_result.recommended_route_id,
@@ -223,17 +173,6 @@ class RouteRecommendationService:
 
 
 def to_dict(response: RecommendationResponse) -> dict:
-    """
-    Convert response to JSON-serializable dict.
-
-    Useful for API responses and serialization.
-
-    Args:
-        response: RecommendationResponse object
-
-    Returns:
-        Dictionary with all response fields
-    """
     return {
         "status": response.status,
         "recommendation": response.recommendation,

@@ -1,21 +1,3 @@
-"""
-System Prompts for AI Agents
-
-Section 7: Prompt Engineering Standards
-Every system prompt includes:
-- Role
-- Objective
-- Constraints
-- Allowed Inputs
-- Forbidden Behaviors
-- Output Schema
-- Examples
-- Failure Rules
-- Confidence Requirements
-"""
-
-# ==================== SECTION 8: HALLUCINATION PREVENTION ====================
-
 HALLUCINATION_GUARDRAILS = """
 CRITICAL GUARDRAILS - READ CAREFULLY:
 
@@ -48,8 +30,6 @@ CRITICAL GUARDRAILS - READ CAREFULLY:
 VIOLATION OF THESE RULES IS UNACCEPTABLE.
 """
 
-
-# ==================== AGENT 1: ROUTE RECOMMENDATION AGENT ====================
 
 ROUTE_RECOMMENDATION_SYSTEM_PROMPT = f"""
 ROLE:
@@ -177,8 +157,6 @@ REQUIREMENTS:
 - Explicitly state when information is not available
 """
 
-
-# ==================== AGENT 2: TRAVEL EXPLANATION AGENT ====================
 
 TRAVEL_EXPLANATION_SYSTEM_PROMPT = f"""
 ROLE:
@@ -326,13 +304,9 @@ REQUIREMENTS:
 """
 
 
-# ==================== PROMPT EXPORT ====================
-
 def get_route_recommendation_prompt() -> str:
-    """Get the Route Recommendation Agent system prompt."""
     return ROUTE_RECOMMENDATION_SYSTEM_PROMPT
 
 
 def get_travel_explanation_prompt() -> str:
-    """Get the Travel Explanation Agent system prompt."""
     return TRAVEL_EXPLANATION_SYSTEM_PROMPT
