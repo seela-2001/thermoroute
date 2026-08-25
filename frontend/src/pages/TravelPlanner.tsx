@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ArrowRight, Search, X, Clock, Shield, Camera, Route, ChevronRight, Sparkles, Thermometer, MapPin, Fuel, Coffee, Hospital, CheckCircle, Zap, Bot, Eye, Navigation, DollarSign, ExternalLink } from "lucide-react";
+import { ArrowRight, Search, X, Clock, Shield, Camera, Route, ChevronRight, Sparkles, Thermometer, MapPin, Coffee, CheckCircle, Zap, Bot, Eye, Navigation, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AnalyzedRoute, RouteAnalysisRequest } from "@/services/routeApi";
-import { analyzeRoute, geocodeCity } from "@/services/routeApi";
-import { RouteMap, routeColors } from "@/components/route-planner/RouteMap";
+import { analyzeRoute } from "@/services/routeApi";
+import { RouteMap } from "@/components/route-planner/RouteMap";
+import { routeColors } from "@/components/route-planner/routeColors";
 
 const popularCities = [
   { city: "New York", state: "NY", lat: 40.7128, lon: -74.0060 },
@@ -44,7 +45,6 @@ export function TravelPlanner() {
   const [analyzedRoutes, setAnalyzedRoutes] = useState<AnalyzedRoute[]>([]);
   const [recommendedRouteId, setRecommendedRouteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [aiReasoning, setAiReasoning] = useState<any>(null);
   const [selectedCamera, setSelectedCamera] = useState<RoutePOI | null>(null);
   const [hourlyForecast, setHourlyForecast] = useState<HourlyForecast[]>([]);
 
@@ -151,26 +151,6 @@ export function TravelPlanner() {
       case 'high': return 'text-orange-600 bg-orange-50 border-orange-200';
       case 'extreme': return 'text-red-600 bg-red-50 border-red-200';
       default: return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
-
-  const getPOIIcon = (type: string) => {
-    switch (type) {
-      case 'fuel': return <Fuel className="w-4 h-4" />;
-      case 'rest': return <Coffee className="w-4 h-4" />;
-      case 'medical': return <Hospital className="w-4 h-4" />;
-      case 'dining': return <DollarSign className="w-4 h-4" />;
-      default: return <MapPin className="w-4 h-4" />;
-    }
-  };
-
-  const getPOIColor = (type: string) => {
-    switch (type) {
-      case 'fuel': return 'bg-blue-500 text-blue-50';
-      case 'rest': return 'bg-green-500 text-green-50';
-      case 'medical': return 'bg-red-500 text-red-50';
-      case 'dining': return 'bg-amber-500 text-amber-50';
-      default: return 'bg-gray-500 text-gray-50';
     }
   };
 
@@ -422,7 +402,7 @@ export function TravelPlanner() {
                         </span>
                       </div>
 
-                      <div className={`mt-2 h-1.5 rounded-full ${isRecommended ? 'bg-gradient-to-r from-purple-500 to-purple-400' : color.primary}`} />
+                      <div className={`mt-2 h-1.5 rounded-full ${isRecommended ? 'bg-gradient-to-r from-purple-500 to-purple-400' : color}`} />
                     </motion.div>
                   );
                 })}
@@ -435,8 +415,8 @@ export function TravelPlanner() {
                   routes={analyzedRoutes}
                   selectedRouteId={selectedRouteId}
                   onRouteClick={setSelectedRouteId}
-                  origin={originCoords}
-                  destination={destCoords}
+                  origin={originCoords || undefined}
+                  destination={destCoords || undefined}
                   hourlyForecast={hourlyForecast}
                 />
               </div>
@@ -451,7 +431,7 @@ export function TravelPlanner() {
 
                 {selectedRoute && selectedRoute.risk?.critical_segments && selectedRoute.risk.critical_segments.length > 0 ? (
                   <div className="p-4 space-y-3">
-                    {selectedRoute.risk.critical_segments.map((segment: any, idx: number) => (
+                    {selectedRoute.risk.critical_segments.map((segment: { segment_id: number; risk_score: number; risk_level: string }, idx: number) => (
                       <motion.div
                         key={segment.segment_id}
                         initial={{ opacity: 0, y: 10 }}
@@ -500,14 +480,14 @@ export function TravelPlanner() {
                 </div>
 
                 <div className="p-4">
-                  {aiReasoning ? (
+                  {selectedRoute ? (
                     <div className="space-y-4">
                       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-3 border border-purple-100">
                         <div className="flex items-center gap-2 mb-2">
                           <Zap className="w-4 h-4 text-purple-600" />
-                          <span className="text-xs font-semibold text-gray-900">Recommendation</span>
+                          <span className="text-xs font-semibold text-gray-900">AI Recommendation</span>
                         </div>
-                        <p className="text-xs text-gray-700 leading-relaxed">{aiReasoning.recommendation}</p>
+                        <p className="text-xs text-gray-700 leading-relaxed">Select a route to see AI analysis</p>
                       </div>
 
                       <div>
@@ -518,13 +498,13 @@ export function TravelPlanner() {
                         <div className="bg-gray-50 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs text-gray-600">Overall Risk</span>
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${getRiskColor(aiReasoning.riskAnalysis.overallRisk)}`}>
-                              {aiReasoning.riskAnalysis.overallRisk}
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${getRiskColor(selectedRoute?.risk?.level || 'low')}`}>
+                              {selectedRoute?.risk?.level || 'N/A'}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-gray-600">Max Heat Index</span>
-                            <span className="text-xs font-semibold text-gray-900">{aiReasoning.riskAnalysis.maxHeatIndex}°F</span>
+                            <span className="text-xs font-semibold text-gray-900">{Math.round((selectedRoute?.risk?.metrics?.max_heat_index || 0) * 9/5 + 32)}°F</span>
                           </div>
                         </div>
                       </div>
@@ -535,18 +515,17 @@ export function TravelPlanner() {
                           <span className="text-xs font-semibold text-gray-900">Key Factors</span>
                         </div>
                         <div className="space-y-2">
-                          {aiReasoning.reasoning.map((point: string, idx: number) => (
+                          {selectedRoute?.risk?.critical_segments?.length === 0 && (
                             <motion.div
-                              key={idx}
                               initial={{ opacity: 0, x: 10 }}
                               animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: idx * 0.1 }}
+                              transition={{ delay: 0 }}
                               className="flex items-start gap-2"
                             >
                               <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0 mt-0.5" />
-                              <p className="text-xs text-gray-700">{point}</p>
+                              <p className="text-xs text-gray-700">No critical risk segments detected</p>
                             </motion.div>
-                          ))}
+                          )}
                         </div>
                       </div>
 
@@ -555,29 +534,13 @@ export function TravelPlanner() {
                           <Thermometer className="w-4 h-4 text-blue-600" />
                           <span className="text-xs font-semibold text-gray-900">Weather Impact</span>
                         </div>
-                        <p className="text-xs text-gray-700">{aiReasoning.weatherImpact}</p>
+                        <p className="text-xs text-gray-700">Select a route for detailed weather analysis</p>
                       </div>
-
-                      {aiReasoning.alternativeOptions && aiReasoning.alternativeOptions.length > 0 && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Route className="w-4 h-4 text-gray-500" />
-                            <span className="text-xs font-semibold text-gray-900">Alternatives</span>
-                          </div>
-                          <div className="space-y-2">
-                            {aiReasoning.alternativeOptions.map((alt: any, idx: number) => (
-                              <div key={idx} className="bg-gray-50 rounded-lg p-2.5">
-                                <p className="text-xs text-gray-700">{alt.reason}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
                       <Bot className="w-8 h-8 mx-auto mb-2" />
-                      <p className="text-xs">AI analysis loading...</p>
+                      <p className="text-xs">Select a route to see AI analysis</p>
                     </div>
                   )}
                 </div>

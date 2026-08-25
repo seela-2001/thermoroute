@@ -8,7 +8,7 @@ interface ReasoningData {
   reasoning: string[];
   riskAnalysis: {
     overallRisk: string;
-    criticalSegments: any[];
+    criticalSegments: { segment_id: number; risk_score: number; risk_level: string }[];
     maxHeatIndex: number;
   };
   weatherImpact: string;
@@ -150,7 +150,7 @@ export function ReasoningPanel({ routes, selectedRouteId }: ReasoningPanelProps)
             <span className="text-xs font-semibold text-gray-900">Alternatives</span>
           </div>
           <div className="space-y-2">
-            {aiReasoning.alternativeOptions.map((alt: any, idx: number) => (
+            {aiReasoning.alternativeOptions.map((alt: { routeId: string; reason: string }, idx: number) => (
               <div key={idx} className="bg-gray-50 rounded-lg p-2.5">
                 <p className="text-xs text-gray-700">{alt.reason}</p>
               </div>

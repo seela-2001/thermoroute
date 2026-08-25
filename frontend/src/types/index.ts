@@ -67,8 +67,8 @@ export interface POI {
   name: string;
   lat: number;
   lon: number;
-  distance: number | null;
-  address: string | null;
+  distance: number | null | undefined;
+  address: string | null | undefined;
   categories: string[];
 }
 
@@ -163,6 +163,8 @@ export interface WeatherData {
   time?: string;
   temperature?: number;
   feels_like?: number;
+  apparent_temperature?: number;
+  heat_index?: number;
   humidity?: number;
   precipitation?: number;
   wind_speed?: number;
@@ -269,7 +271,6 @@ export interface RouteCardProps {
   index: number;
   isSelected: boolean;
   isRecommended: boolean;
-  color: { primary: string; secondary: string };
   onClick: () => void;
 }
 
@@ -277,8 +278,8 @@ export interface RouteMapProps {
   routes: AnalyzedRoute[];
   selectedRouteId: string | null;
   onRouteClick: (routeId: string) => void;
-  origin?: Coordinates;
-  destination?: Coordinates;
+  origin?: Coordinates | null;
+  destination?: Coordinates | null;
   hourlyForecast?: HourlyForecast[];
 }
 
@@ -303,6 +304,7 @@ export interface AutocompleteResult {
   name: string;
   city: string;
   state: string;
+  state_name?: string;
   country?: string;
   lat: number;
   lon: number;
@@ -315,28 +317,45 @@ export interface ApiError {
   message: string;
   code: string;
   status?: number;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 export class RouteAnalysisError extends Error {
+  code: string;
+  statusCode?: number;
+  details?: Record<string, unknown>;
+
   constructor(
     message: string,
-    public code: string,
-    public statusCode?: number,
-    public details?: any
+    code: string,
+    statusCode?: number,
+    details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'RouteAnalysisError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
   }
 }
 
 export class GeocodingError extends Error {
+  code: string;
+  statusCode?: number;
+  details?: Record<string, unknown>;
+
   constructor(
     message: string,
-    public code: string,
-    public statusCode?: number
+    code: string,
+    statusCode?: number,
+    details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'GeocodingError';
+    this.code = code;
+    this.statusCode = statusCode;
+    this.details = details;
   }
 }
+
+export type Route = AnalyzedRoute;

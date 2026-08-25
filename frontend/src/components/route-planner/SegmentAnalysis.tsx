@@ -54,7 +54,7 @@ export function SegmentAnalysis({ route }: SegmentAnalysisProps) {
       </div>
 
       <div className="p-4 space-y-3">
-        {criticalSegments.map((segment: any, idx: number) => {
+        {criticalSegments.map((segment: { segment_id: number; risk_score: number; risk_level: string }, idx: number) => {
           const riskScore = segment.risk_score || 0;
           const riskLevel = (segment.risk_level || 'unknown').toUpperCase();
           const riskColors = getRiskColorClasses(riskLevel);

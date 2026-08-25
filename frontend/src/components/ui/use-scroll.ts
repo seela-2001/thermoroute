@@ -14,7 +14,7 @@ export function useScroll(threshold: number) {
     }, [onScroll]);
 
     React.useEffect(() => {
-        onScroll();
+        requestAnimationFrame(() => onScroll());
     }, [onScroll]);
 
     return scrolled;

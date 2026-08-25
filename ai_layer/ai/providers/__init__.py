@@ -1,5 +1,3 @@
-"""LLM Provider - OpenRouter only."""
-
 from .base import LLMProvider, LLMResponse, LLMConfig
 from .openrouter import OpenRouterProvider
 
