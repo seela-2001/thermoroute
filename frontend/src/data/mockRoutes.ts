@@ -1,8 +1,175 @@
 
-import type { Route, Location, RouteWaypoint, HeatRiskPoint, DepartureOption, Recommendation, Camera, Stop, TripPlan, StopType } from '@/types/route';
+import type { StopType } from '@/types';
+
+// Mock types that match route.ts interface
+interface Location {
+  name: string;
+  coordinates: { lat: number; lon: number };
+  city: string;
+  state: string;
+}
+
+interface RouteWaypoint {
+  id: string;
+  name: string;
+  location: { lat: number; lon: number };
+  type: 'origin' | 'destination' | 'waypoint' | 'camera';
+}
+
+interface HeatRiskPoint {
+  hourOffset: number;
+  timestamp: Date;
+  temperature: number;
+  heatIndex: number;
+  riskLevel: 'low' | 'moderate' | 'high' | 'extreme';
+  humidity: number;
+  uvIndex: number;
+}
+
+interface Camera {
+  id: string;
+  name: string;
+  location: { lat: number; lon: number };
+  roadName: string;
+  direction: string;
+  status: 'active' | 'inactive' | 'maintenance';
+  lastUpdated: Date;
+  streamUrl?: string;
+  thumbnailUrl?: string;
+  description?: string;
+}
+
+interface Stop {
+  id: string;
+  name: string;
+  type: StopType;
+  location: { lat: number; lon: number };
+  roadName: string;
+  distanceFromOrigin: number;
+  estimatedArrivalTime: number;
+  isRecommended: boolean;
+  isHeatAware: boolean;
+  services?: string[];
+  description?: string;
+}
+
+interface TripPlan {
+  routeId: string;
+  tripDuration: number;
+  stopStrategy: 'none' | 'optional' | 'recommended' | 'structured';
+  recommendedStops: Stop[];
+  allStops: Stop[];
+  summary: {
+    totalStops: number;
+    estimatedTotalStopTime: number;
+    fuelStops: number;
+    mealStops: number;
+    restStops: number;
+  };
+}
+
+interface Recommendation {
+  action: 'leave_now' | 'wait' | 'avoid';
+  routeId: string;
+  departureHourOffset: number;
+  departureTime: string;
+  riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH' | 'EXTREME';
+  reasoning: string[];
+  alternatives?: {
+    routeId: string;
+    reason: string;
+  }[];
+}
+
+interface DepartureOption {
+  hourOffset: number;
+  time: string;
+  riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH' | 'EXTREME';
+  temperature: number;
+  recommended: boolean;
+  reason?: string;
+}
+
+// Combined Route type for mock data that includes both API and route.ts properties
+interface Route {
+  id: string;
+  route_id?: string;
+  distance_km?: number;
+  duration_min?: number;
+  geometry?: {
+    coordinates: [number, number][];
+  };
+  heat_data?: {
+    lat: number;
+    lon: number;
+    temperature: number;
+    humidity: number;
+    heat_index: number;
+    uv_index: number;
+    aqi: number;
+    risk_level: string;
+    timestamp: string;
+  }[];
+  pois?: {
+    id: string | null;
+    type: string;
+    name: string;
+    lat: number;
+    lon: number;
+    distance: number | null;
+    address: string | null;
+    categories: string[];
+  }[];
+  risk?: {
+    score: number;
+    level: string;
+    critical_segments: {
+      segment_id: number;
+      risk_score: number;
+      risk_level: string;
+    }[];
+    metrics: {
+      max_temperature: number;
+      max_humidity: number;
+      max_heat_index: number;
+      max_aqi: number;
+    };
+  };
+  weather?: {
+    time?: string;
+    temperature?: number;
+    feels_like?: number;
+    humidity?: number;
+  };
+  hourly_conditions?: {
+    time?: string;
+    temperature?: number;
+    feels_like?: number;
+    humidity?: number;
+  }[];
+  name?: string;
+  description?: string;
+  origin?: Location;
+  destination?: Location;
+  cameras?: Camera[];
+  highways?: string[];
+  currentRisk?: string;
+  currentTemperature?: number;
+  heatRisk?: HeatRiskPoint[];
+  isRecommended?: boolean;
+  features?: {
+    shadeCoverage: number;
+    restStops: number;
+    fuelStations: number;
+    trafficLevel: 'light' | 'moderate' | 'heavy';
+  };
+  waypoints?: RouteWaypoint[];
+  distance?: number;
+  duration?: number;
+  tripPlan?: TripPlan;
+}
 
 const now = new Date();
-const currentHour = now.getHours();
 
 const createHeatRiskPoints = (baseTemp: number, peakHour: number, riskPattern: ('low' | 'moderate' | 'high' | 'extreme')[]): HeatRiskPoint[] => {
   return riskPattern.map((risk, index) => {
@@ -22,14 +189,14 @@ const createHeatRiskPoints = (baseTemp: number, peakHour: number, riskPattern: (
 
 const houston: Location = {
   name: 'Houston, TX',
-  coordinates: { lat: 29.7604, lng: -95.3698 },
+  coordinates: { lat: 29.7604, lon: -95.3698 },
   city: 'Houston',
   state: 'TX',
 };
 
 const dallas: Location = {
   name: 'Dallas, TX',
-  coordinates: { lat: 32.7767, lng: -96.7970 },
+  coordinates: { lat: 32.7767, lon: -96.7970 },
   city: 'Dallas',
   state: 'TX',
 };
@@ -38,7 +205,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-001',
     name: 'I-45 at FM 1960',
-    location: { lat: 29.9514, lng: -95.4642 },
+    location: { lat: 29.9514, lon: -95.4642 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -47,7 +214,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-002',
     name: 'I-45 at Spring Cypress',
-    location: { lat: 30.0342, lng: -95.4815 },
+    location: { lat: 30.0342, lon: -95.4815 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -56,7 +223,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-003',
     name: 'I-45 at Conroe',
-    location: { lat: 30.3114, lng: -95.4567 },
+    location: { lat: 30.3114, lon: -95.4567 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -65,7 +232,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-004',
     name: 'I-45 at Huntsville',
-    location: { lat: 30.7231, lng: -95.5814 },
+    location: { lat: 30.7231, lon: -95.5814 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -74,7 +241,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-005',
     name: 'US-190 at Centerville',
-    location: { lat: 31.2567, lng: -96.3214 },
+    location: { lat: 31.2567, lon: -96.3214 },
     roadName: 'US-190 West',
     direction: 'Westbound',
     status: 'active',
@@ -83,7 +250,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-006',
     name: 'I-45 at Buffalo',
-    location: { lat: 31.4614, lng: -95.6819 },
+    location: { lat: 31.4614, lon: -95.6819 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -92,7 +259,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-007',
     name: 'I-45 at Corsicana',
-    location: { lat: 32.0851, lng: -96.4617 },
+    location: { lat: 32.0851, lon: -96.4617 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -101,7 +268,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-008',
     name: 'I-45 at Ennis',
-    location: { lat: 32.3299, lng: -96.6312 },
+    location: { lat: 32.3299, lon: -96.6312 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -110,7 +277,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-009',
     name: 'I-45 at I-635',
-    location: { lat: 32.6814, lng: -96.7615 },
+    location: { lat: 32.6814, lon: -96.7615 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -119,7 +286,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-010',
     name: 'I-45 at Downtown Dallas',
-    location: { lat: 32.7714, lng: -96.7919 },
+    location: { lat: 32.7714, lon: -96.7919 },
     roadName: 'I-45 North',
     direction: 'Northbound',
     status: 'active',
@@ -128,7 +295,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-011',
     name: 'I-35E at Waco',
-    location: { lat: 31.5493, lng: -97.1467 },
+    location: { lat: 31.5493, lon: -97.1467 },
     roadName: 'I-35E North',
     direction: 'Northbound',
     status: 'active',
@@ -137,7 +304,7 @@ const cameras: Camera[] = [
   {
     id: 'cam-012',
     name: 'US-77 at Temple',
-    location: { lat: 31.0982, lng: -97.3421 },
+    location: { lat: 31.0982, lon: -97.3421 },
     roadName: 'US-77 North',
     direction: 'Northbound',
     status: 'active',
@@ -152,31 +319,29 @@ export function generateTripPlan(
   routeId: string,
   duration: number, // minutes
   distance: number, // miles
-  heatRiskPoints: HeatRiskPoint[],
-  departureHourOffset: number = 0
+  heatRiskPoints: HeatRiskPoint[]
 ): TripPlan {
   const hours = duration / 60;
 
   let stopStrategy: TripPlan['stopStrategy'];
-  let recommendedStops: Stop[] = [];
-  let allStops: Stop[] = [];
+  const recommendedStops: Stop[] = [];
+  const allStops: Stop[] = [];
 
   if (hours < 4) {
     stopStrategy = 'none';
-    recommendedStops = [];
-    allStops = generateAllStops(routeId, distance, duration, 0.3); // Fewer stops
+    generateAllStops(routeId, distance, duration, 0.3); // Fewer stops
   } else if (hours < 7) {
     stopStrategy = 'optional';
-    recommendedStops = generateRecommendedStops(routeId, distance, duration, 2, heatRiskPoints, departureHourOffset);
-    allStops = generateAllStops(routeId, distance, duration, 0.5);
+    recommendedStops.push(...generateRecommendedStops(routeId, distance, duration, 2, heatRiskPoints));
+    generateAllStops(routeId, distance, duration, 0.5);
   } else if (hours < 10) {
     stopStrategy = 'recommended';
-    recommendedStops = generateRecommendedStops(routeId, distance, duration, 3, heatRiskPoints, departureHourOffset);
-    allStops = generateAllStops(routeId, distance, duration, 0.7);
+    recommendedStops.push(...generateRecommendedStops(routeId, distance, duration, 3, heatRiskPoints));
+    generateAllStops(routeId, distance, duration, 0.7);
   } else {
     stopStrategy = 'structured';
-    recommendedStops = generateRecommendedStops(routeId, distance, duration, 4, heatRiskPoints, departureHourOffset);
-    allStops = generateAllStops(routeId, distance, duration, 1);
+    recommendedStops.push(...generateRecommendedStops(routeId, distance, duration, 4, heatRiskPoints));
+    generateAllStops(routeId, distance, duration, 1);
   }
 
   const summary = {
@@ -202,8 +367,7 @@ function generateRecommendedStops(
   distance: number,
   duration: number,
   maxStops: number,
-  heatRiskPoints: HeatRiskPoint[],
-  departureHourOffset: number
+  heatRiskPoints: HeatRiskPoint[]
 ): Stop[] {
   const stops: Stop[] = [];
   const hours = duration / 60;
@@ -215,7 +379,7 @@ function generateRecommendedStops(
   );
 
   if (hours >= 4 && maxStops >= 1) {
-    const fuelStopTime = Math.min(135, duration * 0.25); // ~2h 15m, but max 25% of trip
+    const fuelStopTime = Math.min(135, duration * 0.25);
     const fuelStopDistance = (fuelStopTime / duration) * distance;
     const isHeatAware = Math.abs(fuelStopTime / 60 - highestRiskHour) < 1;
 
@@ -238,7 +402,7 @@ function generateRecommendedStops(
   }
 
   if (hours >= 5 && maxStops >= 2) {
-    const mealStopTime = duration * 0.5; // Midpoint
+    const mealStopTime = duration * 0.5;
     const mealStopDistance = distance * 0.5;
     const isHeatAware = Math.abs(mealStopTime / 60 - highestRiskHour) < 1.5;
 
@@ -261,7 +425,7 @@ function generateRecommendedStops(
   }
 
   if (hours >= 7 && maxStops >= 3) {
-    const fuelStopTime = duration * 0.75; // 75% of trip
+    const fuelStopTime = duration * 0.75;
     const fuelStopDistance = distance * 0.75;
     const isHeatAware = Math.abs(fuelStopTime / 60 - highestRiskHour) < 1;
 
@@ -284,7 +448,7 @@ function generateRecommendedStops(
   }
 
   if (hours >= 10 && maxStops >= 4) {
-    const restStopTime = duration * 0.4; // Before midpoint
+    const restStopTime = duration * 0.4;
     const restStopDistance = distance * 0.4;
 
     stops.push(createStop({
@@ -318,7 +482,7 @@ function generateAllStops(
     const stopTime = duration * progress;
     const stopDistance = distance * progress;
 
-    const stopType: StopType = ['fuel', 'rest', 'meal', 'fuel', 'rest'][i % 5];
+    const stopType = ['fuel', 'rest', 'meal', 'heat_break', 'lodging'][i % 5] as StopType;
     const isRecommended = false;
 
     stops.push(createStop({
@@ -355,7 +519,7 @@ function createStop(params: {
     type: params.type,
     location: {
       lat: 29.76 + (params.distanceFromOrigin / 239.3) * (32.78 - 29.76),
-      lng: -95.37 + (params.distanceFromOrigin / 239.3) * (-96.80 + 95.37),
+      lon: -95.37 + (params.distanceFromOrigin / 239.3) * (-96.80 + 95.37),
     },
     roadName: params.roadName,
     distanceFromOrigin: params.distanceFromOrigin,
@@ -436,9 +600,9 @@ export const mockRoutes: Route[] = [
     },
     waypoints: [
       { id: 'wp-a-1', name: 'Houston, TX', location: houston.coordinates, type: 'origin' },
-      { id: 'wp-a-2', name: 'Conroe, TX', location: { lat: 30.3114, lng: -95.4567 }, type: 'waypoint' },
-      { id: 'wp-a-3', name: 'Huntsville, TX', location: { lat: 30.7231, lng: -95.5814 }, type: 'waypoint' },
-      { id: 'wp-a-4', name: 'Corsicana, TX', location: { lat: 32.0851, lng: -96.4617 }, type: 'waypoint' },
+      { id: 'wp-a-2', name: 'Conroe, TX', location: { lat: 30.3114, lon: -95.4567 }, type: 'waypoint' },
+      { id: 'wp-a-3', name: 'Huntsville, TX', location: { lat: 30.7231, lon: -95.5814 }, type: 'waypoint' },
+      { id: 'wp-a-4', name: 'Corsicana, TX', location: { lat: 32.0851, lon: -96.4617 }, type: 'waypoint' },
       { id: 'wp-a-5', name: 'Dallas, TX', location: dallas.coordinates, type: 'destination' },
     ],
     tripPlan: generateTripPlan('route-a', 222, 239.3, createHeatRiskPoints(85, 3, ['low', 'low', 'moderate', 'moderate', 'high', 'high', 'high', 'moderate', 'moderate', 'low', 'low', 'low'])),
@@ -465,8 +629,8 @@ export const mockRoutes: Route[] = [
     },
     waypoints: [
       { id: 'wp-b-1', name: 'Houston, TX', location: houston.coordinates, type: 'origin' },
-      { id: 'wp-b-2', name: 'Brenham, TX', location: { lat: 30.1667, lng: -96.3967 }, type: 'waypoint' },
-      { id: 'wp-b-3', name: 'Waco, TX', location: { lat: 31.5493, lng: -97.1467 }, type: 'waypoint' },
+      { id: 'wp-b-2', name: 'Brenham, TX', location: { lat: 30.1667, lon: -96.3967 }, type: 'waypoint' },
+      { id: 'wp-b-3', name: 'Waco, TX', location: { lat: 31.5493, lon: -97.1467 }, type: 'waypoint' },
       { id: 'wp-b-4', name: 'Dallas, TX', location: dallas.coordinates, type: 'destination' },
     ],
     tripPlan: generateTripPlan('route-b', 215, 254.7, createHeatRiskPoints(92, 2, ['moderate', 'high', 'high', 'high', 'high', 'extreme', 'high', 'moderate', 'moderate', 'moderate', 'low', 'low'])),
@@ -493,8 +657,8 @@ export const mockRoutes: Route[] = [
     },
     waypoints: [
       { id: 'wp-c-1', name: 'Houston, TX', location: houston.coordinates, type: 'origin' },
-      { id: 'wp-c-2', name: 'College Station, TX', location: { lat: 30.6280, lng: -96.3344 }, type: 'waypoint' },
-      { id: 'wp-c-3', name: 'Waco, TX', location: { lat: 31.5493, lng: -97.1467 }, type: 'waypoint' },
+      { id: 'wp-c-2', name: 'College Station, TX', location: { lat: 30.6280, lon: -96.3344 }, type: 'waypoint' },
+      { id: 'wp-c-3', name: 'Waco, TX', location: { lat: 31.5493, lon: -97.1467 }, type: 'waypoint' },
       { id: 'wp-c-4', name: 'Dallas, TX', location: dallas.coordinates, type: 'destination' },
     ],
     tripPlan: generateTripPlan('route-c', 242, 261.2, createHeatRiskPoints(84, 4, ['low', 'low', 'low', 'low', 'moderate', 'moderate', 'moderate', 'moderate', 'low', 'low', 'low', 'low'])),
@@ -507,13 +671,13 @@ export const mockRoutes: Route[] = [
     duration: 612, // 10h 12m - Long trip, structured stops
     origin: {
       name: 'Houston, TX',
-      coordinates: { lat: 29.7604, lng: -95.3698 },
+      coordinates: { lat: 29.7604, lon: -95.3698 },
       city: 'Houston',
       state: 'TX',
     },
     destination: {
       name: 'El Paso, TX',
-      coordinates: { lat: 31.7619, lng: -106.4850 },
+      coordinates: { lat: 31.7619, lon: -106.4850 },
       city: 'El Paso',
       state: 'TX',
     },
@@ -530,11 +694,11 @@ export const mockRoutes: Route[] = [
       trafficLevel: 'moderate',
     },
     waypoints: [
-      { id: 'wp-long-1', name: 'Houston, TX', location: { lat: 29.7604, lng: -95.3698 }, type: 'origin' },
-      { id: 'wp-long-2', name: 'San Antonio, TX', location: { lat: 29.4241, lng: -98.4936 }, type: 'waypoint' },
-      { id: 'wp-long-3', name: 'Junction, TX', location: { lat: 30.4861, lng: -99.7717 }, type: 'waypoint' },
-      { id: 'wp-long-4', name: 'Fort Stockton, TX', location: { lat: 30.8864, lng: -102.8775 }, type: 'waypoint' },
-      { id: 'wp-long-5', name: 'El Paso, TX', location: { lat: 31.7619, lng: -106.4850 }, type: 'destination' },
+      { id: 'wp-long-1', name: 'Houston, TX', location: { lat: 29.7604, lon: -95.3698 }, type: 'origin' },
+      { id: 'wp-long-2', name: 'San Antonio, TX', location: { lat: 29.4241, lon: -98.4936 }, type: 'waypoint' },
+      { id: 'wp-long-3', name: 'Junction, TX', location: { lat: 30.4861, lon: -99.7717 }, type: 'waypoint' },
+      { id: 'wp-long-4', name: 'Fort Stockton, TX', location: { lat: 30.8864, lon: -102.8775 }, type: 'waypoint' },
+      { id: 'wp-long-5', name: 'El Paso, TX', location: { lat: 31.7619, lon: -106.4850 }, type: 'destination' },
     ],
     tripPlan: generateTripPlan('route-long', 612, 746.5, createHeatRiskPoints(95, 5, ['high', 'high', 'high', 'extreme', 'extreme', 'high', 'high', 'moderate', 'moderate', 'low', 'low', 'low'])),
   },
@@ -546,13 +710,13 @@ export const mockRoutes: Route[] = [
     duration: 468, // 7h 48m - Medium-long trip, recommended stops
     origin: {
       name: 'Houston, TX',
-      coordinates: { lat: 29.7604, lng: -95.3698 },
+      coordinates: { lat: 29.7604, lon: -95.3698 },
       city: 'Houston',
       state: 'TX',
     },
     destination: {
       name: 'Oklahoma City, OK',
-      coordinates: { lat: 35.4676, lng: -97.5164 },
+      coordinates: { lat: 35.4676, lon: -97.5164 },
       city: 'Oklahoma City',
       state: 'OK',
     },
@@ -569,27 +733,27 @@ export const mockRoutes: Route[] = [
       trafficLevel: 'light',
     },
     waypoints: [
-      { id: 'wp-med-1', name: 'Houston, TX', location: { lat: 29.7604, lng: -95.3698 }, type: 'origin' },
-      { id: 'wp-med-2', name: 'Dallas, TX', location: { lat: 32.7767, lng: -96.7970 }, type: 'waypoint' },
-      { id: 'wp-med-3', name: 'Oklahoma City, OK', location: { lat: 35.4676, lng: -97.5164 }, type: 'destination' },
+      { id: 'wp-med-1', name: 'Houston, TX', location: { lat: 29.7604, lon: -95.3698 }, type: 'origin' },
+      { id: 'wp-med-2', name: 'Dallas, TX', location: { lat: 32.7767, lon: -96.7970 }, type: 'waypoint' },
+      { id: 'wp-med-3', name: 'Oklahoma City, OK', location: { lat: 35.4676, lon: -97.5164 }, type: 'destination' },
     ],
     tripPlan: generateTripPlan('route-medium-long', 468, 498.3, createHeatRiskPoints(88, 4, ['moderate', 'moderate', 'high', 'high', 'high', 'moderate', 'moderate', 'low', 'low', 'low', 'low', 'low'])),
   },
 ];
 
 export const mockDepartureOptions: DepartureOption[] = [
-  { hourOffset: 0, time: 'Now', riskLevel: 'low', temperature: 85, recommended: true, reason: 'Best current conditions' },
-  { hourOffset: 1, time: '+1 Hour', riskLevel: 'low', temperature: 87, recommended: false },
-  { hourOffset: 2, time: '+2 Hours', riskLevel: 'moderate', temperature: 90, recommended: false },
-  { hourOffset: 3, time: '+3 Hours', riskLevel: 'moderate', temperature: 93, recommended: false },
-  { hourOffset: 4, time: '+4 Hours', riskLevel: 'high', temperature: 95, recommended: false },
-  { hourOffset: 5, time: '+5 Hours', riskLevel: 'high', temperature: 97, recommended: false, reason: 'Peak heat advisory' },
-  { hourOffset: 6, time: '+6 Hours', riskLevel: 'high', temperature: 96, recommended: false },
-  { hourOffset: 7, time: '+7 Hours', riskLevel: 'moderate', temperature: 94, recommended: false },
-  { hourOffset: 8, time: '+8 Hours', riskLevel: 'moderate', temperature: 91, recommended: false },
-  { hourOffset: 9, time: '+9 Hours', riskLevel: 'low', temperature: 88, recommended: false },
-  { hourOffset: 10, time: '+10 Hours', riskLevel: 'low', temperature: 86, recommended: false },
-  { hourOffset: 11, time: '+11 Hours', riskLevel: 'low', temperature: 84, recommended: false },
+  { hourOffset: 0, time: 'Now', riskLevel: 'LOW', temperature: 85, recommended: true, reason: 'Best current conditions' },
+  { hourOffset: 1, time: '+1 Hour', riskLevel: 'LOW', temperature: 87, recommended: false },
+  { hourOffset: 2, time: '+2 Hours', riskLevel: 'MODERATE', temperature: 90, recommended: false },
+  { hourOffset: 3, time: '+3 Hours', riskLevel: 'MODERATE', temperature: 93, recommended: false },
+  { hourOffset: 4, time: '+4 Hours', riskLevel: 'HIGH', temperature: 95, recommended: false },
+  { hourOffset: 5, time: '+5 Hours', riskLevel: 'HIGH', temperature: 97, recommended: false, reason: 'Peak heat advisory' },
+  { hourOffset: 6, time: '+6 Hours', riskLevel: 'HIGH', temperature: 96, recommended: false },
+  { hourOffset: 7, time: '+7 Hours', riskLevel: 'MODERATE', temperature: 94, recommended: false },
+  { hourOffset: 8, time: '+8 Hours', riskLevel: 'MODERATE', temperature: 91, recommended: false },
+  { hourOffset: 9, time: '+9 Hours', riskLevel: 'LOW', temperature: 88, recommended: false },
+  { hourOffset: 10, time: '+10 Hours', riskLevel: 'LOW', temperature: 86, recommended: false },
+  { hourOffset: 11, time: '+11 Hours', riskLevel: 'LOW', temperature: 84, recommended: false },
 ];
 
 export const mockRecommendation: Recommendation = {
@@ -597,7 +761,7 @@ export const mockRecommendation: Recommendation = {
   routeId: 'route-a',
   departureHourOffset: 0,
   departureTime: 'Now',
-  riskLevel: 'low',
+  riskLevel: 'LOW',
   reasoning: [
     'Current heat risk is low (85°F)',
     'Route A has the best shade coverage (35%)',

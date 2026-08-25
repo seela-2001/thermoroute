@@ -8,7 +8,6 @@ interface RouteCardProps {
   index: number;
   isSelected: boolean;
   isRecommended: boolean;
-  color: { primary: string; secondary: string };
   onClick: () => void;
 }
 
@@ -17,11 +16,9 @@ export function RouteCard({
   index,
   isSelected,
   isRecommended,
-  color,
   onClick,
 }: RouteCardProps) {
   const riskColor = getRiskColorClasses(route.risk?.level || 'low');
-  const riskColorClass = `${riskColor.text} ${riskColor.bg} ${riskColor.border}`;
 
   return (
     <motion.div

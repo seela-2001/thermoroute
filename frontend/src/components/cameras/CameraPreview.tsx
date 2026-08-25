@@ -1,6 +1,6 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, MapPin, Clock, Navigation, Eye, Maximize2, ExternalLink } from 'lucide-react';
+import { X, Camera, MapPin, Clock, Navigation, Eye, Maximize2, ExternalLink, AlertCircle } from 'lucide-react';
 import type { Camera as CameraType } from '@/types/route';
 
 interface CameraPreviewProps {
@@ -72,7 +72,7 @@ export function CameraPreview({ camera, onClose }: CameraPreviewProps) {
                 <div>
                   <p className="text-xs text-slate-500">Location</p>
                   <p className="text-sm font-medium text-slate-900">
-                    {camera.location.lat.toFixed(4)}, {camera.location.lng.toFixed(4)}
+                    {camera.location.lat.toFixed(4)}, {camera.location.lon.toFixed(4)}
                   </p>
                 </div>
               </div>

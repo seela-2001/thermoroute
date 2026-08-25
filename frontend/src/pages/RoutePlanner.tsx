@@ -1,17 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
-import { ArrowRight, Route, ChevronRight, MapPin, RefreshCw, X, Camera, CheckCircle, Eye, Navigation, Shield } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowRight, Route, ChevronRight, MapPin, RefreshCw, X, Camera, CheckCircle, Eye, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import { useCache, withCache } from "@/lib/useCache";
+import { withCache } from "@/lib/useCache";
 import type { AnalyzedRoute, RouteAnalysisRequest, AutocompleteResult } from "@/services/routeApi";
 import { analyzeRoute, searchLocations } from "@/services/routeApi";
 import { LocationInput } from "@/components/route-planner/LocationInput";
 import { RouteCard } from "@/components/route-planner/RouteCard";
-import { TimeRiskBar, type HourlyForecast } from "@/components/route-planner/TimeRiskBar";
+import { type HourlyForecast } from "@/components/route-planner/TimeRiskBar";
 import { ReasoningPanel } from "@/components/route-planner/ReasoningPanel";
 import { SegmentAnalysis } from "@/components/route-planner/SegmentAnalysis";
-import { RouteMap, routeColors } from "@/components/route-planner/RouteMap";
-import { formatTemperature, formatTime } from "@/lib";
+import { RouteMap } from "@/components/route-planner/RouteMap";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -95,7 +94,27 @@ function getCamerasFromRoute(route: AnalyzedRoute): RoutePOI[] {
 /**
  * SearchForm component for origin/destination input
  */
-function SearchForm({
+interface SearchFormProps {
+  origin: string;
+  setOrigin: (val: string) => void;
+  destination: string;
+  setDestination: (val: string) => void;
+  originSuggestions: AutocompleteResult[];
+  destSuggestions: AutocompleteResult[];
+  showOriginSuggestions: boolean;
+  showDestSuggestions: boolean;
+  setShowOriginSuggestions: (val: boolean) => void;
+  setShowDestSuggestions: (val: boolean) => void;
+  setIsTypingOrigin: (val: boolean) => void;
+  setIsTypingDest: (val: boolean) => void;
+  setSelectedOrigin: (val: AutocompleteResult | null) => void;
+  setSelectedDestination: (val: AutocompleteResult | null) => void;
+  onPlanRoute: () => void;
+  isLoading: boolean;
+  apiError: string | null;
+}
+
+const SearchForm = ({
   origin,
   setOrigin,
   destination,
@@ -106,22 +125,34 @@ function SearchForm({
   showDestSuggestions,
   setShowOriginSuggestions,
   setShowDestSuggestions,
+  setIsTypingOrigin,
+  setIsTypingDest,
+  setSelectedOrigin,
+  setSelectedDestination,
   onPlanRoute,
   isLoading,
   apiError,
-}: any) {
-  const handleOriginSelect = (city: AutocompleteResult) => {
-    setOrigin(city.name);
+}: SearchFormProps) => {
+  const handleOriginSelect = (city: { city: string; state: string }, original: AutocompleteResult) => {
+    setOrigin(city.city);
+    setSelectedOrigin(original);
+    setIsTypingOrigin(false);
     setShowOriginSuggestions(false);
   };
 
-  const handleDestSelect = (city: AutocompleteResult) => {
-    setDestination(city.name);
+  const handleDestSelect = (city: { city: string; state: string }, original: AutocompleteResult) => {
+    setDestination(city.city);
+    setSelectedDestination(original);
+    setIsTypingDest(false);
     setShowDestSuggestions(false);
   };
 
   const formatSuggestionsForComponent = (cities: AutocompleteResult[]) =>
-    cities.map(c => ({ city: c.name, state: c.state || c.state_name || 'TX' }));
+    cities.map(c => ({
+      city: c.name,
+      state: c.state || c.state_name || 'TX',
+      original: c
+    }));
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100">
@@ -139,8 +170,15 @@ function SearchForm({
             label="From"
             placeholder="Enter city or address"
             value={origin}
-            onChange={setOrigin}
-            onClear={() => setOrigin('')}
+            onChange={(value) => {
+              setOrigin(value);
+              setIsTypingOrigin(true);
+            }}
+            onClear={() => {
+              setOrigin('');
+              setSelectedOrigin(null);
+              setIsTypingOrigin(false);
+            }}
             suggestions={formatSuggestionsForComponent(originSuggestions)}
             showSuggestions={showOriginSuggestions}
             onSuggestionSelect={handleOriginSelect}
@@ -151,8 +189,15 @@ function SearchForm({
             label="To"
             placeholder="Enter city or address"
             value={destination}
-            onChange={setDestination}
-            onClear={() => setDestination('')}
+            onChange={(value) => {
+              setDestination(value);
+              setIsTypingDest(true);
+            }}
+            onClear={() => {
+              setDestination('');
+              setSelectedDestination(null);
+              setIsTypingDest(false);
+            }}
             suggestions={formatSuggestionsForComponent(destSuggestions)}
             showSuggestions={showDestSuggestions}
             onSuggestionSelect={handleDestSelect}
@@ -333,6 +378,10 @@ export function RoutePlanner() {
   const [destSuggestions, setDestSuggestions] = useState<AutocompleteResult[]>([]);
   const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
   const [showDestSuggestions, setShowDestSuggestions] = useState(false);
+  const [isTypingOrigin, setIsTypingOrigin] = useState(false);
+  const [isTypingDest, setIsTypingDest] = useState(false);
+  const [selectedOrigin, setSelectedOrigin] = useState<AutocompleteResult | null>(null);
+  const [selectedDestination, setSelectedDestination] = useState<AutocompleteResult | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [analyzedRoutes, setAnalyzedRoutes] = useState<AnalyzedRoute[]>([]);
@@ -345,7 +394,7 @@ export function RoutePlanner() {
   // Debounced autocomplete for origin
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (origin.length >= 2) {
+      if (origin.length >= 2 && isTypingOrigin) {
         try {
           const result = await searchLocations(origin, 5);
           if (result.success) {
@@ -366,12 +415,12 @@ export function RoutePlanner() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [origin]);
+  }, [origin, isTypingOrigin]);
 
   // Debounced autocomplete for destination
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (destination.length >= 2) {
+      if (destination.length >= 2 && isTypingDest) {
         try {
           const result = await searchLocations(destination, 5);
           if (result.success) {
@@ -383,16 +432,16 @@ export function RoutePlanner() {
           }
         } catch {
           setDestSuggestions([]);
-            setShowDestSuggestions(false);
-          }
-        } else {
-          setDestSuggestions([]);
           setShowDestSuggestions(false);
         }
-      }, 300);
+      } else {
+        setDestSuggestions([]);
+        setShowDestSuggestions(false);
+      }
+    }, 300);
 
     return () => clearTimeout(timer);
-  }, [destination]);
+  }, [destination, isTypingDest]);
 
   /**
    * Handle route planning
@@ -406,9 +455,9 @@ export function RoutePlanner() {
     setApiError(null);
 
     try {
-      // Get coordinates from selected suggestions
-      const originLocation = originSuggestions.find(s => s.name === origin);
-      const destLocation = destSuggestions.find(s => s.name === destination);
+      // Get coordinates from selected locations
+      const originLocation = selectedOrigin;
+      const destLocation = selectedDestination;
 
       if (!originLocation || !destLocation) {
         setApiError("Please select a location from the autocomplete suggestions");
@@ -476,6 +525,10 @@ export function RoutePlanner() {
               showDestSuggestions={showDestSuggestions}
               setShowOriginSuggestions={setShowOriginSuggestions}
               setShowDestSuggestions={setShowDestSuggestions}
+              setIsTypingOrigin={setIsTypingOrigin}
+              setIsTypingDest={setIsTypingDest}
+              setSelectedOrigin={setSelectedOrigin}
+              setSelectedDestination={setSelectedDestination}
               onPlanRoute={handlePlanRoute}
               isLoading={isLoading}
               apiError={apiError}
@@ -519,7 +572,6 @@ export function RoutePlanner() {
                       index={index}
                       isSelected={route.id === selectedRouteId}
                       isRecommended={route.id === recommendedRouteId}
-                      color={{ primary: routeColors[index % routeColors.length].color, secondary: routeColors[index % routeColors.length].secondary }}
                       onClick={() => setSelectedRouteId(route.id)}
                     />
                   ))}
@@ -532,13 +584,13 @@ export function RoutePlanner() {
                     routes={analyzedRoutes}
                     selectedRouteId={selectedRouteId}
                     onRouteClick={setSelectedRouteId}
-                    origin={originCoords}
-                    destination={destCoords}
+                    origin={originCoords || undefined}
+                    destination={destCoords || undefined}
                     hourlyForecast={hourlyForecast}
                   />
                 </div>
 
-                <SegmentAnalysis route={selectedRoute} />
+                <SegmentAnalysis route={selectedRoute || null} />
               </div>
 
               <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto flex-shrink-0">
