@@ -79,9 +79,7 @@ class RouteAnalysisService:
                         }
 
                 except Exception as exc:
-                    print(
-                        f"Weather API Error: {exc}"
-                    )
+                    print(f"Weather API Error: {exc}")
 
                     weather = {
                         "current": {},
@@ -90,21 +88,25 @@ class RouteAnalysisService:
 
             pois = []
 
-            if sampled_points:
-                try:
-                    pois = self.poi_service.get_pois(
-                        sampled_points,
-                        radius=500,
-                    )
+            try:
+                pois = self.poi_service.get_pois(
+                    origin={
+                        "lat": origin_lat,
+                        "lon": origin_lng,
+                    },
+                    destination={
+                        "lat": destination_lat,
+                        "lon": destination_lng,
+                    },
+                    route_points=geometry_points,
+                )
 
-                    if not isinstance(pois, list):
-                        pois = []
-
-                except Exception as exc:
-                    print(
-                        f"POI service unavailable: {exc}"
-                    )
+                if not isinstance(pois, list):
                     pois = []
+
+            except Exception as exc:
+                print(f"POI service unavailable: {exc}")
+                pois = []
 
             traffic = self._get_route_traffic(
                 sampled_points
@@ -246,9 +248,7 @@ class RouteAnalysisService:
                 )
 
                 if isinstance(traffic, dict):
-                    traffic_results.append(
-                        traffic
-                    )
+                    traffic_results.append(traffic)
 
             except Exception as exc:
                 print(
@@ -330,7 +330,6 @@ class RouteAnalysisService:
         ]
 
         incidents = []
-
         seen_incidents = set()
 
         for result in valid_results:
