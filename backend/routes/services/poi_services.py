@@ -4,39 +4,33 @@ import requests
 
 
 class POIService:
-    """
-    Service responsible for fetching and filtering Points of Interest
-    around the route origin and destination.
-
-    The backend strictly limits the final POI response to MAX_POIS.
-    Hospitals and fuel stations are prioritized when available.
-    """
-
     BASE_URL = "https://api.geoapify.com/v2/places"
 
     DEFAULT_RADIUS = 500
     DEFAULT_TIMEOUT = 5
 
-    MAX_POIS = 30
-    MAX_ROUTE_POINTS = 2
+    MAX_POIS = 15
+    MAX_POINTS_PER_ROUTE = 2
 
     CATEGORIES = (
-        "catering.cafe,"
         "catering.restaurant,"
-        "commercial.shopping_mall,"
-        "commercial.supermarket,"
-        "education.library,"
-        "healthcare.hospital,"
-        "healthcare.pharmacy,"
+        "catering.cafe,"
         "service.vehicle.fuel,"
+        "healthcare.hospital,"
         "leisure.park,"
         "natural.forest,"
         "natural.water,"
+        "commercial.shopping_mall,"
+        "commercial.supermarket,"
+        "education.library,"
         "amenity.drinking_water"
     )
+
+    # These categories are important enough that we try
+    # to preserve them when selecting the final 15 POIs.
     PRIORITY_TYPES = (
+        "gas_station",
         "hospital",
-        "fuel_station",
     )
 
     def __init__(
@@ -63,26 +57,21 @@ class POIService:
         lon: float,
         radius: int | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        Fetch nearby POIs from Geoapify.
-
-        The API request itself is also limited to MAX_POIS.
-        A second strict limit is applied after parsing/filtering.
-        """
-
         if not self.api_key:
-            print("GEOAPIFY_API_KEY is not configured")
+            print(
+                "GEOAPIFY_API_KEY is not configured"
+            )
             return []
 
         radius = radius or self.radius
 
         params = {
             "categories": self.CATEGORIES,
-            "filter": f"circle:{lon},{lat},{radius}",
-
-            # Ask Geoapify for a bounded number of results.
+            "filter": (
+                f"circle:{lon},{lat},{radius}"
+            ),
+            # API-side limit.
             "limit": self.MAX_POIS,
-
             "apiKey": self.api_key,
         }
 
@@ -122,7 +111,6 @@ class POIService:
                     "Geoapify response status: "
                     f"{exc.response.status_code}"
                 )
-
                 print(
                     "Geoapify response body: "
                     f"{exc.response.text}"
@@ -138,169 +126,178 @@ class POIService:
 
     def get_pois(
         self,
-        points,
+        origin: dict[str, float] | None = None,
+        destination: dict[str, float] | None = None,
+        route_points: list[dict[str, float]] | None = None,
         radius: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Get POIs around the route origin and destination.
+        Get POIs for ONE route.
 
-        The final response is strictly limited to MAX_POIS.
+        POIs are intentionally searched only around:
+        1. route origin
+        2. route destination
 
-        Priority:
-            1. Hospitals
-            2. Fuel stations
-            3. Restaurants / cafes / other POIs
-
-        This guarantees that important emergency/travel-support
-        locations are not accidentally removed by the final limit.
+        We do NOT search random points along the route, so
+        `route_points` (the full route geometry) is accepted
+        for interface compatibility with the caller but is not
+        used for POI lookups.
         """
 
-        if not points:
+        search_points = self._resolve_search_points(
+            origin,
+            destination,
+        )
+
+        if not search_points:
             return []
-
-        radius = radius or self.radius
-
-        # We only need POIs around the beginning and end of the route.
-        route_points = self._get_origin_destination_points(points)
 
         all_pois = []
         seen_pois = set()
 
-        for point in route_points:
-            lat = point.get("lat")
-            lon = point.get("lon")
-
-            if lat is None or lon is None:
-                continue
-
+        for point_type, point in search_points:
             pois = self.get_nearby_pois(
-                lat=lat,
-                lon=lon,
+                lat=point["lat"],
+                lon=point["lon"],
                 radius=radius,
             )
 
             for poi in pois:
-                unique_key = self._build_unique_key(poi)
+                unique_key = self._poi_key(poi)
 
                 if unique_key in seen_pois:
                     continue
 
                 seen_pois.add(unique_key)
+
+                # Keep track of whether this POI belongs
+                # to route origin or destination.
+                poi["route_location"] = point_type
+
                 all_pois.append(poi)
 
-        # Apply strict final limit with priority handling.
         return self._limit_pois(
-            all_pois,
-            max_pois=self.MAX_POIS,
+            all_pois
         )
 
     @staticmethod
-    def _get_origin_destination_points(points):
-        """
-        Return only the route origin and destination.
+    def _resolve_search_points(
+        origin: dict[str, float] | None,
+        destination: dict[str, float] | None,
+    ):
+        points = []
 
-        This prevents POIs from random points in the middle
-        of the route from dominating the response.
-        """
+        if (
+            origin
+            and origin.get("lat") is not None
+            and origin.get("lon") is not None
+        ):
+            points.append(("origin", origin))
 
-        if len(points) == 1:
-            return [points[0]]
+        if (
+            destination
+            and destination.get("lat") is not None
+            and destination.get("lon") is not None
+            and destination != origin
+        ):
+            points.append(("destination", destination))
 
-        return [
-            points[0],
-            points[-1],
-        ]
+        return points
 
     @staticmethod
-    def _build_unique_key(
+    def _poi_key(
         poi: dict[str, Any],
     ):
-        """
-        Build a stable key for POI deduplication.
-        """
-
-        poi_id = poi.get("id")
-
-        if poi_id:
-            return ("id", poi_id)
-
         return (
-            "location",
-            poi.get("type"),
-            poi.get("lat"),
-            poi.get("lon"),
+            poi.get("id")
+            or (
+                poi.get("type"),
+                poi.get("lat"),
+                poi.get("lon"),
+            )
         )
 
     @classmethod
     def _limit_pois(
         cls,
         pois: list[dict[str, Any]],
-        max_pois: int,
     ) -> list[dict[str, Any]]:
         """
-        Strictly limit POIs while prioritizing hospitals
-        and fuel stations.
+        Strict backend limit.
 
-        Example:
+        Maximum response = 15 POIs.
 
-            max_pois = 15
+        Priority:
+        1. gas stations
+        2. hospitals
+        3. everything else
 
-        If hospitals and fuel stations exist, they are placed
-        first, then the remaining slots are filled with other POIs.
+        Within each group, closest POIs are preferred.
         """
 
-        if not pois:
-            return []
+        if len(pois) <= cls.MAX_POIS:
+            return pois
 
-        # Separate priority POIs.
-        hospitals = [
-            poi
-            for poi in pois
-            if poi.get("type") == "hospital"
-        ]
+        priority = []
+        others = []
 
-        fuel_stations = [
-            poi
-            for poi in pois
-            if poi.get("type") == "fuel_station"
-        ]
+        for poi in pois:
+            if poi.get("type") in cls.PRIORITY_TYPES:
+                priority.append(poi)
+            else:
+                others.append(poi)
 
-        # Everything else.
-        other_pois = [
-            poi
-            for poi in pois
-            if poi.get("type")
-            not in cls.PRIORITY_TYPES
-        ]
+        priority.sort(
+            key=cls._distance_sort_key
+        )
+
+        others.sort(
+            key=cls._distance_sort_key
+        )
 
         selected = []
 
-        # Add hospitals first.
-        selected.extend(hospitals)
+        # First preserve priority POIs.
+        for poi in priority:
+            if len(selected) >= cls.MAX_POIS:
+                break
 
-        # Add fuel stations second.
-        selected.extend(fuel_stations)
+            selected.append(poi)
 
-        # Fill remaining slots with other POIs.
-        remaining_slots = max_pois - len(selected)
+        # Then fill remaining slots.
+        for poi in others:
+            if len(selected) >= cls.MAX_POIS:
+                break
 
-        if remaining_slots > 0:
-            selected.extend(
-                other_pois[:remaining_slots]
-            )
+            selected.append(poi)
 
-        # Absolute backend safety limit.
-        return selected[:max_pois]
+        return selected[: cls.MAX_POIS]
+
+    @staticmethod
+    def _distance_sort_key(
+        poi: dict[str, Any],
+    ):
+        distance = poi.get("distance")
+
+        if distance is None:
+            return float("inf")
+
+        try:
+            return float(distance)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return float("inf")
 
     @staticmethod
     def _parse_pois(
         data: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """
-        Parse Geoapify response into the ThermoRoute POI format.
-        """
-
-        features = data.get("features", [])
+        features = data.get(
+            "features",
+            [],
+        )
 
         pois = []
 
@@ -344,7 +341,9 @@ class POIService:
 
             name = (
                 properties.get("name")
-                or properties.get("address_line1")
+                or properties.get(
+                    "address_line1"
+                )
                 or "Unnamed"
             )
 
@@ -371,32 +370,23 @@ class POIService:
     def _classify_poi(
         categories,
     ) -> str:
-        """
-        Convert Geoapify categories into ThermoRoute POI types.
-
-        Important:
-            Hospitals and fuel stations have their own explicit
-            types so they can be prioritized by _limit_pois().
-        """
-
         categories = [
             category.lower()
             for category in categories
         ]
 
+        # Fuel must be checked before generic
+        # "service" categories.
         for category in categories:
             if (
                 "fuel" in category
-                or "gas" in category
-                or "service.vehicle.fuel" in category
+                or "gas_station" in category
+                or "petrol" in category
             ):
-                return "fuel_station"
+                return "gas_station"
 
         for category in categories:
-            if (
-                "hospital" in category
-                or "healthcare.hospital" in category
-            ):
+            if "hospital" in category:
                 return "hospital"
 
         for category in categories:
@@ -424,7 +414,6 @@ class POIService:
                 or "cafe" in category
                 or "restaurant" in category
                 or "library" in category
-                or "pharmacy" in category
             ):
                 return "indoor"
 
