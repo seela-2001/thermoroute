@@ -17,7 +17,7 @@ class POIService:
     DEFAULT_RADIUS = 500
     DEFAULT_TIMEOUT = 5
 
-    MAX_POIS = 15
+    MAX_POIS = 30
     MAX_ROUTE_POINTS = 2
 
     CATEGORIES = (
