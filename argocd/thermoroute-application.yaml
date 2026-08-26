@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: thermoroute-application
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/seela-2001/thermoroute
+    targetRevision: main
+    path: helm/thermoroute
+    helm:
+      releaseName: thermoroute
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: thermoroute
+  
+  syncPolicy:
+    automated: 
+      prune: true 
+      selfHeal: true 
