@@ -25,6 +25,7 @@ class RouteAnalysisView(APIView):
             origin_lng=data["origin_lng"],
             destination_lat=data["destination_lat"],
             destination_lng=data["destination_lng"],
+            jurisdiction=data["jurisdiction"],
         )
         if not result["success"]:
             return Response(
