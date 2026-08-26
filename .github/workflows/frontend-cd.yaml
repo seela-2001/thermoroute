@@ -36,7 +36,7 @@ jobs:
           context: .
           file: ./frontend/Dockerfile
           push: true
-          tags:
+          tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ github.event.workflow_run.head_sha}}
             ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:latest
       
