@@ -23,3 +23,6 @@ media/
 # IDE
 .vscode/
 .idea/
+
+rendered.yaml
+secret.yaml
