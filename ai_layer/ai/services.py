@@ -8,8 +8,8 @@ from typing import Optional
 import requests
 import os
 
-from config import Config, RiskThresholds, NormalizationRanges
-from exceptions import ValidationError, APIError, LLMError
+from .config import Config, RiskThresholds, NormalizationRanges
+from .exceptions import ValidationError, RouteNotFoundError, APIError, LLMError
 
 
 class RiskLevel(Enum):
@@ -137,15 +137,17 @@ class RiskCalculator:
         return int(round(weighted))
 
     def classify_risk_level(self, score: int) -> RiskLevel:
-        """Classify risk level from score."""
-        if score >= RiskThresholds.EXTREME:
+        thresholds = self.config.thresholds
+
+        if score >= thresholds.EXTREME:
             return RiskLevel.EXTREME
-        elif score >= RiskThresholds.VERY_HIGH:
+        elif score >= thresholds.VERY_HIGH:
             return RiskLevel.VERY_HIGH
-        elif score >= RiskThresholds.HIGH:
+        elif score >= thresholds.HIGH:
             return RiskLevel.HIGH
-        elif score >= RiskThresholds.MODERATE:
+        elif score >= thresholds.MODERATE:
             return RiskLevel.MODERATE
+
         return RiskLevel.LOW
 
     def analyze_route(self, route_id: str, segments: list[dict]) -> HeatAnalysisResult:
