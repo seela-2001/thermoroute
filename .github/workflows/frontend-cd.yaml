@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check Repository
-        uses: actions/action@v4
+        uses: actions/checkout@v4
         with: 
           ref: ${{ github.event.workflow_run.head_sha }}
 
