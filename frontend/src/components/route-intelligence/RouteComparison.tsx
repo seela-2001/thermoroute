@@ -1,5 +1,4 @@
-import { motion } from 'framer-motion';
-import { Thermometer, Clock, Route as RouteIcon, ArrowRight } from 'lucide-react';
+import { Route as RouteIcon } from 'lucide-react';
 import type { Route } from '@/types/route';
 import { getRiskColor, getRiskColorClasses, formatDuration, formatDistance } from '@/lib';
 
@@ -49,7 +48,7 @@ export function RouteComparison({ routes, selectedRouteId, selectedHour, onRoute
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {routes.map((route, routeIndex) => {
+            {routes.map((route) => {
               const isSelected = route.id === selectedRouteId;
 
               return (

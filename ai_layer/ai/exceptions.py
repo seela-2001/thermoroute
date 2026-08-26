@@ -1,12 +1,7 @@
-"""
-Custom Exceptions
-Structured error handling with context.
-"""
 from typing import Any, Optional
 
 
 class HeatOpsException(Exception):
-    """Base exception for HeatOps."""
 
     def __init__(
         self,
@@ -28,7 +23,6 @@ class HeatOpsException(Exception):
 
 
 class ValidationError(HeatOpsException):
-    """Input validation failed."""
 
     def __init__(self, message: str, field: Optional[str] = None, context: Optional[dict] = None):
         ctx = context or {}
@@ -38,7 +32,6 @@ class ValidationError(HeatOpsException):
 
 
 class RouteNotFoundError(HeatOpsException):
-    """No routes found for the request."""
 
     def __init__(self, origin: str, destination: str):
         super().__init__(
@@ -49,7 +42,6 @@ class RouteNotFoundError(HeatOpsException):
 
 
 class APIError(HeatOpsException):
-    """External API call failed."""
 
     def __init__(self, message: str, api: str, status_code: Optional[int] = None):
         ctx = {"api": api}
@@ -59,7 +51,6 @@ class APIError(HeatOpsException):
 
 
 class LLMError(HeatOpsException):
-    """LLM provider error."""
 
     def __init__(self, message: str, provider: str = "openai", status_code: Optional[int] = None):
         ctx = {"provider": provider}

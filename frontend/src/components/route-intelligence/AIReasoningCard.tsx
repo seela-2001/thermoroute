@@ -116,40 +116,31 @@ export function AIReasoningCard({ route, routes, selectedRouteId }: AIReasoningC
 function generateAIReasoning(route: AnalyzedRoute, allRoutes: AnalyzedRoute[], isSelected: boolean) {
   const riskLevel = route.risk?.level?.toLowerCase() || 'unknown';
   const riskScore = route.risk?.score || 0;
-  const maxTemp = route.risk?.metrics?.max_temperature || route.heat_data?.[0]?.temperature || 0;
   const heatIndex = route.risk?.metrics?.max_heat_index || route.heat_data?.[0]?.heat_index || 0;
   const durationMin = route.duration_min || 0;
   const distanceKm = route.distance_km || 0;
 
-  const routeIndex = allRoutes.findIndex(r => r.id === route.id);
   const avgRiskScore = allRoutes.length > 0
     ? allRoutes.reduce((sum, r) => sum + (r.risk?.score || 0), 0) / allRoutes.length
     : 0;
 
-  let recommendation = '';
-  let recommendationReason = '';
+  const lowerRiskRoute = allRoutes.find(r => (r.risk?.score || 0) < (route.risk?.score || 0));
+  const routeIndex = allRoutes.findIndex(r => r.id === route.id);
 
-  if (isSelected) {
-    if (riskScore < avgRiskScore) {
-      recommendation = 'Recommended - Lowest Risk';
-      recommendationReason = `This route has the lowest risk score (${riskScore}) among all options.`;
-    } else if (riskLevel === 'low' || riskLevel === 'moderate') {
-      recommendation = 'Safe to Travel';
-      recommendationReason = `Current conditions are favorable with ${riskLevel} risk level.`;
-    } else {
-      recommendation = 'Proceed with Caution';
-      recommendationReason = 'Elevated heat risk detected. Monitor conditions carefully.';
-    }
-  } else {
-    const lowerRiskRoute = allRoutes.find(r => (r.risk?.score || 0) < (route.risk?.score || 0));
-    if (lowerRiskRoute) {
-      recommendation = 'Alternative Route';
-      recommendationReason = `Higher risk than ${String.fromCharCode(65 + allRoutes.indexOf(lowerRiskRoute))}. Consider safer options.`;
-    } else {
-      recommendation = 'Viable Option';
-      recommendationReason = 'Similar risk levels to other available routes.';
-    }
-  }
+  const recommendation = isSelected && riskScore < avgRiskScore
+    ? 'Recommended - Lowest Risk'
+    : lowerRiskRoute
+      ? 'Alternative Route'
+      : riskLevel === 'low' || riskLevel === 'moderate'
+        ? 'Safe to Travel'
+        : 'Proceed with Caution';
+  const recommendationReason = isSelected && riskScore < avgRiskScore
+    ? `This route has the lowest risk score (${riskScore}) among all options.`
+    : lowerRiskRoute
+      ? `Higher risk than ${String.fromCharCode(65 + routeIndex)}. Consider safer options.`
+      : riskLevel === 'low' || riskLevel === 'moderate'
+        ? `Current conditions are favorable with ${riskLevel} risk level.`
+        : 'Elevated heat risk detected. Monitor conditions carefully.';
 
   const riskAnalysis = {
     low: `Risk score of ${riskScore} indicates safe travel conditions. No significant heat-related concerns.`,
@@ -159,15 +150,12 @@ function generateAIReasoning(route: AnalyzedRoute, allRoutes: AnalyzedRoute[], i
     extreme: `Extreme risk. Strongly recommend postponing travel until conditions improve.`,
   }[riskLevel] || 'Unknown risk level.';
 
-  let weatherImpact = '';
   const heatIndexF = (heatIndex * 9/5) + 32;
-  if (heatIndexF > 113) {
-    weatherImpact = `Heat index of ${formatTemperature(heatIndex, 'C')} feels significantly hotter than actual temperature. Take extra precautions.`;
-  } else if (heatIndexF > 90) {
-    weatherImpact = `Heat index of ${formatTemperature(heatIndex, 'C')} may cause discomfort during prolonged exposure.`;
-  } else {
-    weatherImpact = `Comfortable conditions with heat index of ${formatTemperature(heatIndex, 'C')}.`;
-  }
+  const weatherImpact = heatIndexF > 113
+    ? `Heat index of ${formatTemperature(heatIndex, 'C')} feels significantly hotter than actual temperature. Take extra precautions.`
+    : heatIndexF > 90
+      ? `Heat index of ${formatTemperature(heatIndex, 'C')} may cause discomfort during prolonged exposure.`
+      : `Comfortable conditions with heat index of ${formatTemperature(heatIndex, 'C')}.`;
 
   const avgDistance = allRoutes.length > 0
     ? allRoutes.reduce((sum, r) => sum + (r.distance_km || 0), 0) / allRoutes.length
@@ -176,14 +164,11 @@ function generateAIReasoning(route: AnalyzedRoute, allRoutes: AnalyzedRoute[], i
     ? allRoutes.reduce((sum, r) => sum + (r.duration_min || 0), 0) / allRoutes.length
     : 0;
 
-  let routeEfficiency = '';
-  if (distanceKm <= avgDistance && durationMin <= avgDuration) {
-    routeEfficiency = `Shortest route with ${distanceKm.toFixed(1)}km distance and ${formatDuration(durationMin)} duration.`;
-  } else if (distanceKm <= avgDistance * 1.1) {
-    routeEfficiency = `Slightly longer route but offers better safety trade-offs.`;
-  } else {
-    routeEfficiency = `Longer route at ${distanceKm.toFixed(1)}km with ${formatDuration(durationMin)} duration.`;
-  }
+  const routeEfficiency = distanceKm <= avgDistance && durationMin <= avgDuration
+    ? `Shortest route with ${distanceKm.toFixed(1)}km distance and ${formatDuration(durationMin)} duration.`
+    : distanceKm <= avgDistance * 1.1
+      ? `Slightly longer route but offers better safety trade-offs.`
+      : `Longer route at ${distanceKm.toFixed(1)}km with ${formatDuration(durationMin)} duration.`;
 
   const keyPoints: string[] = [];
 

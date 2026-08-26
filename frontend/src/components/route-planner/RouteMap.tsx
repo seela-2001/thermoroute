@@ -1,18 +1,10 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { AnalyzedRoute } from '@/services/routeApi';
 import { TimeRiskBar, type HourlyForecast } from './TimeRiskBar';
-
-const routeColors = [
-  { color: '#8B5CF6', secondary: '#A78BFA' },
-  { color: '#10B981', secondary: '#34D399' },
-  { color: '#F59E0B', secondary: '#FBBF24' },
-];
-
-export { routeColors };
+import { routeColors } from './routeColors';
 
 interface RouteMapProps {
   routes: AnalyzedRoute[];
@@ -32,7 +24,7 @@ function MapBoundsController({ routes, selectedRouteId }: { routes: AnalyzedRout
     const selectedRoute = routes.find(r => r.id === selectedRouteId) || routes[0];
     if (!selectedRoute || !selectedRoute.geometry?.coordinates) return;
 
-    const coords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+    const coords = selectedRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
     if (coords.length === 0) return;
 
     const bounds = L.latLngBounds(coords);
@@ -79,7 +71,7 @@ function RoutePolylines({ routes, selectedRouteId, onRouteClick }: {
   );
 }
 
-function POIMarkers({ pois, selectedRouteId }: { pois: any[]; selectedRouteId: string | null }) {
+function POIMarkers({ pois }: { pois: { id: string | null; lat?: number; lon?: number; name?: string; type?: string; distance?: number | null; categories?: string[] }[] }) {
   const poiIcons = {
     rest: L.divIcon({
       className: 'custom-marker',
@@ -156,8 +148,6 @@ function POIMarkers({ pois, selectedRouteId }: { pois: any[]; selectedRouteId: s
 }
 
 export function RouteMap({ routes, selectedRouteId, onRouteClick, origin, destination, hourlyForecast }: RouteMapProps) {
-  const [mapReady, setMapReady] = useState(false);
-
   const originIcon = L.divIcon({
     className: 'custom-marker',
     html: `<div style="background: #3B82F6; width: 32px; height: 32px; border-radius: 50%; border: 4px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">A</div>`,
@@ -191,11 +181,11 @@ export function RouteMap({ routes, selectedRouteId, onRouteClick, origin, destin
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          <MapBoundsController routes={routes} selectedRouteId={selectedRouteId} />
+          <MapBoundsController routes={routes} selectedRouteId={routes[0]?.id || null} />
 
-          <RoutePolylines routes={routes} selectedRouteId={selectedRouteId} onRouteClick={onRouteClick} />
+          <RoutePolylines routes={routes} selectedRouteId={routes[0]?.id || null} onRouteClick={onRouteClick} />
 
-          <POIMarkers pois={pois} selectedRouteId={selectedRouteId} />
+          <POIMarkers pois={pois} />
 
           {origin && (
             <Marker position={[origin.lat, origin.lon]} icon={originIcon}>
