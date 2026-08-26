@@ -9,7 +9,7 @@ import requests
 import os
 
 from .config import Config, RiskThresholds, NormalizationRanges
-from ai.exceptions import ValidationError, APIError, LLMError
+from .exceptions import ValidationError, RouteNotFoundError, APIError, LLMError
 
 
 class RiskLevel(Enum):
