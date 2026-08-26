@@ -7,7 +7,11 @@ This is the deterministic core that can be consumed by any frontend/backend.
 from dataclasses import dataclass
 from typing import Optional
 
+<<<<<<< HEAD
 from thermoroute.ai_layer.ai.config import Config
+=======
+from config import Config
+>>>>>>> AI-Layer
 from thermoroute.ai_layer.ai.services import (
     RiskCalculator,
     RouteOptimizer,
