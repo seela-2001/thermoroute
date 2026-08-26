@@ -26,8 +26,3 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </StrictMode>,
 )
-
-
-
-
-//'jsut testing'
