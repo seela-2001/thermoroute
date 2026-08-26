@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: thermoroute-backend
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: thermoroute-backend
+
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      app: thermoroute-backend
+
+  template: 
+    metadata:
+      labels: 
+        app: thermoroute-backend
+
+    spec:
+      containers:
+        - name: backend-container
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.containerPort }}
+          
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: SECRET_KEY
+
+            - name: DEBUG
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: DEBUG
+
+            - name: CORS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: CORS_ALLOWED_ORIGINS
+
+            - name: ALLOWED_HOSTS
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: ALLOWED_HOSTS
+
+            - name: DB_ENGINE
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: DB_ENGINE
+
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: DB_NAME
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: DB_USER
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: DB_PASSWORD
+
+            - name: DB_HOST
+              value: thermoroute-postgres
+
+            - name: DB_PORT
+              value: "5432"
+
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: POSTGRES_DB
+
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: POSTGRES_USER
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: POSTGRES_PASSWORD
+
+            - name: FORTYGUARD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: FORTYGUARD_API_KEY
+
+            - name: FORTYGUARD_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: FORTYGUARD_BASE_URL
+
+            - name: FORTYGUARD_TIMEOUT
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: FORTYGUARD_TIMEOUT
+
+            - name: GEOAPIFY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: GEOAPIFY_API_KEY
+
+            - name: TOMTOM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: TOMTOM_API_KEY
+
+            - name: ROAD_511
+              valueFrom:
+                secretKeyRef:
+                  name: thermoroute-secrets
+                  key: ROAD_511
+
+
+          resources: 
+            {{- toYaml .Values.backend.resources | nindent 12}}
