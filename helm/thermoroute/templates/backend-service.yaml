@@ -8,6 +8,6 @@ spec:
   selector:
     app: thermoroute-backend
   ports:
-    protocol: TCP
-    port: {{ .Values.backend.service.port }}
-    targetPort: {{ .Values.backend.containerPort }}
+    - protocol: TCP
+      port: {{ .Values.backend.service.port }}
+      targetPort: {{ .Values.backend.containerPort }}
