@@ -68,7 +68,7 @@ class FortyGuardService:
     """
 
     DEFAULT_BASE_URL = "https://api.fortyguard.com/v1"
-    DEFAULT_TIMEOUT = 10
+    DEFAULT_TIMEOUT = 120
     DEFAULT_CACHE_GRID_KM = 1.0
 
     def __init__(
