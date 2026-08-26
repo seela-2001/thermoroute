@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check Repository
-        uses: actions/action@v4
+        uses: actions/checkout@v4
         with: 
           ref: ${{ github.event.workflow_run.head_sha }}
 
@@ -33,10 +33,10 @@ jobs:
       - name: build-and-push-frontend
         uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags:
+          tags: |
             ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ github.event.workflow_run.head_sha}}
             ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:latest
       
