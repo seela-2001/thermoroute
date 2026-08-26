@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Clock, Thermometer, Check, AlertTriangle } from 'lucide-react';
 import type { DepartureOption } from '@/types';
 import { getRiskColor, getRiskColorClasses } from '@/lib';

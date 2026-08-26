@@ -1,10 +1,3 @@
-"""
-Section 6: Shared AI Context Builder
-
-Builds the AIContext object from deterministic services output.
-
-No API calls. No database queries. Pure transformation of existing data.
-"""
 from typing import Optional, Any
 
 from .schemas import (
@@ -21,26 +14,8 @@ from .schemas import (
 
 
 class ContextBuilder:
-    """
-    Builds AIContext from service outputs.
-
-    Section 6: Every AI request receives exactly one context object.
-    """
 
     def build(self, data: dict[str, Any]) -> AIContext:
-        """
-        Build AIContext from raw data.
-
-        Args:
-            data: Dictionary containing all required data from services
-
-        Returns:
-            Validated AIContext
-
-        Raises:
-            ValidationError: If required data is missing
-        """
-        # Extract trip data
         trip_data = data.get("trip", {})
         trip = TripInput(
             origin=trip_data.get("origin", ""),
@@ -49,18 +24,15 @@ class ContextBuilder:
             vehicle_type=trip_data.get("vehicle_type"),
         )
 
-        # Extract routes
         routes_data = data.get("routes", [])
         candidate_routes = [
             self._build_route_input(r) for r in routes_data
         ]
 
-        # Extract selected route if provided
         selected_route = None
         if data.get("selected_route"):
             selected_route = self._build_route_input(data["selected_route"])
 
-        # Extract risk scores
         risk_scores = {}
         for route_id, score_data in data.get("risk_scores", {}).items():
             risk_scores[route_id] = RouteScoreInput(
@@ -72,7 +44,6 @@ class ContextBuilder:
                 risk_level=score_data.get("risk_level", "UNKNOWN"),
             )
 
-        # Extract weather forecast
         forecast = []
         for w_data in data.get("forecast", []):
             forecast.append(WeatherInput(
@@ -84,7 +55,6 @@ class ContextBuilder:
                 time=w_data.get("time", ""),
             ))
 
-        # Extract heat data
         heat = {}
         for route_id, heat_data in data.get("heat", {}).items():
             heat[route_id] = HeatInput(
@@ -94,7 +64,6 @@ class ContextBuilder:
                 risk_level=heat_data.get("risk_level", "UNKNOWN"),
             )
 
-        # Extract road conditions
         road_conditions = []
         for rc_data in data.get("road_conditions", []):
             road_conditions.append(RoadConditionInput(
@@ -104,7 +73,6 @@ class ContextBuilder:
                 severity=rc_data.get("severity"),
             ))
 
-        # Extract POIs
         rest_stops = [
             self._build_poi_input(poi, "rest_stop")
             for poi in data.get("rest_stops", [])
@@ -122,7 +90,6 @@ class ContextBuilder:
             for poi in data.get("emergency_locations", [])
         ]
 
-        # Extract cameras
         cameras = []
         for cam_data in data.get("cameras", []):
             cameras.append(CameraInput(
@@ -147,7 +114,6 @@ class ContextBuilder:
             cameras=cameras,
         )
 
-        # Validate context
         is_valid, error = context.validate()
         if not is_valid:
             from .exceptions import ValidationError
@@ -156,7 +122,6 @@ class ContextBuilder:
         return context
 
     def _build_route_input(self, data: dict[str, Any]) -> RouteInput:
-        """Build RouteInput from dict."""
         return RouteInput(
             id=data.get("id", ""),
             name=data.get("name", ""),
@@ -167,7 +132,6 @@ class ContextBuilder:
         )
 
     def _build_poi_input(self, data: dict[str, Any], poi_type: str) -> POIInput:
-        """Build POIInput from dict."""
         return POIInput(
             poi_type=poi_type,
             name=data.get("name", ""),
@@ -176,20 +140,8 @@ class ContextBuilder:
         )
 
     def calculate_confidence(self, context: AIContext) -> float:
-        """
-        Calculate confidence score based on data completeness.
-
-        Section 9: Confidence reflects completeness of input data.
-
-        Scoring:
-        - Full route data: +0.3
-        - Risk scores for all routes: +0.3
-        - Weather forecast: +0.2
-        - POI data (rest stops, gas): +0.2
-        """
         confidence = 0.0
 
-        # Check route data (30%)
         if context.candidate_routes:
             has_complete_routes = all(
                 r.distance_km > 0 and r.duration_min > 0
@@ -198,13 +150,11 @@ class ContextBuilder:
             if has_complete_routes:
                 confidence += 0.3
 
-        # Check risk scores (30%)
         route_ids = {r.id for r in context.candidate_routes}
         score_ids = set(context.risk_scores.keys())
         if route_ids == score_ids and context.risk_scores:
             confidence += 0.3
 
-        # Check weather forecast (20%)
         if context.forecast:
             has_forecast_data = all(
                 w.temperature_c > 0 for w in context.forecast
@@ -212,37 +162,17 @@ class ContextBuilder:
             if has_forecast_data:
                 confidence += 0.2
 
-        # Check POI data (20%)
         if context.rest_stops or context.gas_stations:
             confidence += 0.2
 
-        # Round to 2 decimal places
         return round(confidence, 2)
 
 
 def build_ai_context(data: dict[str, Any]) -> AIContext:
-    """
-    Convenience function to build AIContext.
-
-    Args:
-        data: Raw data from deterministic services
-
-    Returns:
-        Validated AIContext
-    """
     builder = ContextBuilder()
     return builder.build(data)
 
 
 def calculate_confidence(context: AIContext) -> float:
-    """
-    Convenience function to calculate confidence.
-
-    Args:
-        context: Validated AIContext
-
-    Returns:
-        Confidence score (0.0 to 1.0)
-    """
     builder = ContextBuilder()
     return builder.calculate_confidence(context)
