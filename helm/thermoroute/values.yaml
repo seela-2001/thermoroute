@@ -9,7 +9,7 @@ backend:
 
   containerPort: 8000
   service:
-    type: clusterIP
+    type: ClusterIP
     port: 8000
   
   resources:
@@ -31,7 +31,7 @@ frontend:
   
   containerPort: 3000
   service:
-    type: clusterIP
+    type: ClusterIP
     port: 3000
 
   resources:
@@ -61,4 +61,4 @@ postgres:
 ingress:
   enabled: true
   className: nginx
-  host: thermoroute.rout
+  host: thermoroute.local
