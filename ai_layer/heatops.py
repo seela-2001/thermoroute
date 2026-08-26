@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from config import Config
-from services import (
+from thermoroute.ai_layer.ai.services import (
     RiskCalculator,
     RouteOptimizer,
     RecommendationExplainer,
