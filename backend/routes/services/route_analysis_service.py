@@ -2,6 +2,7 @@ from .route_providers import RouteProvider
 from .weather_services import WeatherService
 from .poi_services import POIService
 from .traffic_services import TrafficService
+from .camera_services import CameraService
 from heat.services.heat_analysis_services import HeatAnalysisService
 
 
@@ -13,6 +14,7 @@ class RouteAnalysisService:
         self.weather_service = WeatherService()
         self.poi_service = POIService()
         self.traffic_service = TrafficService()
+        self.camera_service = CameraService()
 
     def analyze(
         self,
@@ -20,6 +22,7 @@ class RouteAnalysisService:
         origin_lng: float,
         destination_lat: float,
         destination_lng: float,
+        jurisdiction: str,
         start_date: str | None = None,
         start_time: str | None = None,
     ):
@@ -46,8 +49,11 @@ class RouteAnalysisService:
                 geometry_points,
                 max_points=5,
             )
-            heat_result = self.heat_analysis_service.analyze(
-                sampled_points
+
+            heat_result = (
+                self.heat_analysis_service.analyze(
+                    sampled_points
+                )
             )
 
             if not heat_result.get("success"):
@@ -67,26 +73,31 @@ class RouteAnalysisService:
 
             if sampled_points:
                 try:
-                    weather = self.weather_service.get_weather(
-                        lat=sampled_points[0]["lat"],
-                        lon=sampled_points[0]["lon"],
+                    weather = (
+                        self.weather_service.get_weather(
+                            lat=sampled_points[0]["lat"],
+                            lon=sampled_points[0]["lon"],
+                        )
                     )
 
-                    if not isinstance(weather, dict):
+                    if not isinstance(
+                        weather,
+                        dict,
+                    ):
                         weather = {
                             "current": {},
                             "hourly": [],
                         }
 
                 except Exception as exc:
-                    print(f"Weather API Error: {exc}")
+                    print(
+                        f"Weather API Error: {exc}"
+                    )
 
                     weather = {
                         "current": {},
                         "hourly": [],
                     }
-
-            pois = []
 
             try:
                 pois = self.poi_service.get_pois(
@@ -105,8 +116,28 @@ class RouteAnalysisService:
                     pois = []
 
             except Exception as exc:
-                print(f"POI service unavailable: {exc}")
+                print(
+                    f"POI service unavailable: {exc}"
+                )
                 pois = []
+
+            try:
+                cameras = self.camera_service.get_cameras_for_route(
+                    route=route,
+                    jurisdiction=jurisdiction,
+                )
+
+                if not isinstance(
+                    cameras,
+                    list,
+                ):
+                    cameras = []
+
+            except Exception as exc:
+                print(
+                    f"Camera service unavailable: {exc}"
+                )
+                cameras = []
 
             traffic = self._get_route_traffic(
                 sampled_points
@@ -136,6 +167,7 @@ class RouteAnalysisService:
                     [],
                 ),
                 "pois": pois,
+                "cameras": cameras,
                 "traffic": traffic,
             }
 
@@ -206,6 +238,18 @@ class RouteAnalysisService:
                         "congestion",
                         0.0,
                     ),
+                    "camera_count": len(
+                        route.get(
+                            "cameras",
+                            [],
+                        )
+                    ),
+                    "poi_count": len(
+                        route.get(
+                            "pois",
+                            [],
+                        )
+                    ),
                 }
             )
 
@@ -247,8 +291,13 @@ class RouteAnalysisService:
                     lon=point["lon"],
                 )
 
-                if isinstance(traffic, dict):
-                    traffic_results.append(traffic)
+                if isinstance(
+                    traffic,
+                    dict,
+                ):
+                    traffic_results.append(
+                        traffic
+                    )
 
             except Exception as exc:
                 print(
@@ -458,7 +507,9 @@ class RouteAnalysisService:
         return "EXTREME"
 
     @staticmethod
-    def _geometry_to_points(geometry):
+    def _geometry_to_points(
+        geometry,
+    ):
         if not geometry:
             return []
 

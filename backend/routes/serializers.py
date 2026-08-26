@@ -89,3 +89,6 @@ class RouteAnalysisRequestSerializer(serializers.Serializer):
     departure_time = serializers.TimeField(
         required=False
     )
+    jurisdiction = serializers.CharField(
+        max_length=10
+    )
