@@ -8,6 +8,10 @@ class LocationService:
         "https://api.geoapify.com/v1/geocode/autocomplete"
     )
 
+    GEOCODE_URL = (
+        "https://api.geoapify.com/v1/geocode/search"
+    )
+
     DEFAULT_LIMIT = 5
     DEFAULT_TIMEOUT = 5
     DEFAULT_LANGUAGE = "en"
@@ -119,6 +123,98 @@ class LocationService:
             return {
                 "success": False,
                 "results": [],
+                "error": (
+                    "Geoapify returned invalid JSON"
+                ),
+            }
+
+    def geocode(
+        self,
+        text: str,
+        country: str = DEFAULT_COUNTRY,
+    ) -> dict[str, Any]:
+
+        text = text.strip()
+
+        if not text:
+            return {
+                "success": False,
+                "error": "Geocoding text cannot be empty",
+            }
+
+        if not self.api_key:
+            return {
+                "success": False,
+                "error": (
+                    "GEOAPIFY_API_KEY is not configured"
+                ),
+            }
+
+        params = {
+            "text": text,
+            "format": "json",
+            "limit": 1,
+            "filter": f"countrycode:{country}",
+            "apiKey": self.api_key,
+        }
+
+        try:
+            response = self.session.get(
+                self.GEOCODE_URL,
+                params=params,
+                timeout=self.timeout,
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            results = data.get("results", [])
+
+            if not results:
+                return {
+                    "success": False,
+                    "error": (
+                        "No geocoding results found "
+                        "for the given text"
+                    ),
+                }
+
+            first = results[0]
+
+            return {
+                "success": True,
+                "lat": first.get("lat"),
+                "lon": first.get("lon"),
+                "formatted": first.get(
+                    "formatted"
+                ),
+            }
+
+        except requests.Timeout:
+            return {
+                "success": False,
+                "error": "Geoapify geocoding timeout",
+            }
+
+        except requests.ConnectionError:
+            return {
+                "success": False,
+                "error": (
+                    "Unable to connect to "
+                    "Geoapify geocoding API"
+                ),
+            }
+
+        except requests.HTTPError as exc:
+            return {
+                "success": False,
+                "error": str(exc),
+            }
+
+        except ValueError:
+            return {
+                "success": False,
                 "error": (
                     "Geoapify returned invalid JSON"
                 ),

@@ -65,6 +65,7 @@ const usRoads = [
     { name: 'I-95 South Weather', route: '/roads/i-95-south' },
 ] as const;
 
+// Split roads into 3 columns for desktop
 const column1 = usRoads.slice(0, 18);
 const column2 = usRoads.slice(18, 36);
 const column3 = usRoads.slice(36);
@@ -76,6 +77,7 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
     const triggerRef = React.useRef<HTMLDivElement>(null);
     const timeoutRef = React.useRef<number | null>(null);
 
+    // Desktop hover handling
     const handleMouseEnter = () => {
         if (timeoutRef.current) {
             clearTimeout(timeoutRef.current);
@@ -89,10 +91,12 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
         }, 150);
     };
 
+    // Mobile toggle handling
     const handleMobileToggle = () => {
         setIsMobileOpen(!isMobileOpen);
     };
 
+    // Clean up timeout on unmount
     React.useEffect(() => {
         return () => {
             if (timeoutRef.current) {
@@ -103,6 +107,7 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
 
     return (
         <>
+            {/* Desktop Menu */}
             <div
                 ref={triggerRef}
                 className="hidden md:block relative"
@@ -144,7 +149,8 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
                         className="absolute top-full right-0 mt-1 min-w-[450px] bg-white rounded-lg border border-gray-200 shadow-lg z-50 animate-in fade-in-0 zoom-in-95 duration-200"
                     >
                         <div className="p-2 grid grid-cols-3 gap-x-4 gap-y-0.5">
-                                            <div className="space-y-0">
+                            {/* Column 1 */}
+                            <div className="space-y-0">
                                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                                     Interstate Highways
                                 </h3>
@@ -160,7 +166,8 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
                                 ))}
                             </div>
 
-                                            <div className="space-y-0">
+                            {/* Column 2 */}
+                            <div className="space-y-0">
                                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                                     Regional Routes
                                 </h3>
@@ -176,7 +183,8 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
                                 ))}
                             </div>
 
-                                            <div className="space-y-0">
+                            {/* Column 3 */}
+                            <div className="space-y-0">
                                 <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                                     Major Corridors
                                 </h3>
@@ -196,6 +204,7 @@ export function UsRoadsMegaMenu({ className }: UsRoadsMenuProps) {
                 )}
             </div>
 
+            {/* Mobile Accordion */}
             <div className="md:hidden w-full">
                 <button
                     onClick={handleMobileToggle}

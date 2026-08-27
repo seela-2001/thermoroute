@@ -21,6 +21,7 @@ export function Contact() {
         </p>
 
         <div className="grid gap-8 md:grid-cols-1">
+          {/* Email */}
           <div className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 bg-gray-50">
             <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
               <Mail className="w-5 h-5 text-gray-600" />
@@ -34,7 +35,8 @@ export function Contact() {
             </div>
           </div>
 
-            <div className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 bg-gray-50">
+          {/* Location */}
+          <div className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 bg-gray-50">
             <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
               <MapPin className="w-5 h-5 text-gray-600" />
             </div>
@@ -47,7 +49,8 @@ export function Contact() {
             </div>
           </div>
 
-            <div className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 bg-gray-50">
+          {/* Phone */}
+          <div className="flex items-start gap-4 p-6 rounded-lg border border-gray-200 bg-gray-50">
             <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
               <Phone className="w-5 h-5 text-gray-600" />
             </div>

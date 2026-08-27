@@ -67,6 +67,9 @@ class RouteProvider:
                     "duration_seconds": duration_seconds,
                     "geometry": geometry,
                     "legs": route.get("legs", []),
+                    "waypoints": self._extract_waypoints(
+                        route.get("legs", []),
+                    ),
                 }
             )
 
@@ -74,6 +77,39 @@ class RouteProvider:
                 break
 
         return routes
+
+    @staticmethod
+    def _extract_waypoints(legs):
+        """Collect step maneuver locations (lon, lat) from OSRM
+        legs, deduplicated and in route order."""
+        waypoints = []
+        seen = set()
+
+        for leg in legs:
+            for step in leg.get("steps", []):
+                maneuver = step.get("maneuver") or {}
+                location = maneuver.get("location")
+
+                if not location or len(location) < 2:
+                    continue
+
+                key = (
+                    round(float(location[0]), 5),
+                    round(float(location[1]), 5),
+                )
+
+                if key in seen:
+                    continue
+
+                seen.add(key)
+                waypoints.append(
+                    {
+                        "lon": float(location[0]),
+                        "lat": float(location[1]),
+                    }
+                )
+
+        return waypoints
 
     @staticmethod
     def _geometry_key(geometry):
