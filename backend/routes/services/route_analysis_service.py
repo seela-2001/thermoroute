@@ -21,6 +21,7 @@ class RouteAnalysisService:
         step_minutes: int = 30,
         weather_weight: float = 0.7,
         time_weight: float = 0.3,
+        traffic_aware: bool = False,
     ):
         routes = self.route_provider.get_routes(
             origin_lat=origin_lat,
@@ -64,6 +65,7 @@ class RouteAnalysisService:
             step_minutes=step_minutes,
             weather_weight=weather_weight,
             time_weight=time_weight,
+            traffic_aware=traffic_aware,
         )
 
         if not result.get("success"):

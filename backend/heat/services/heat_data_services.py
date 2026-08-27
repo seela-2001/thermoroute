@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
 from ai.fortyguard_service import FortyGuardService
 
 
@@ -51,6 +52,7 @@ class HeatDataService:
     def get_route_heat_at_etas(
         self,
         temporal_points: list[dict],
+        heat_cache: dict | None = None,
     ) -> list[dict]:
         if not temporal_points:
             return []
@@ -59,16 +61,39 @@ class HeatDataService:
 
         def fetch_point(index, point):
             eta = point["eta"]
+            rounded_eta = (
+                eta + timedelta(minutes=30)
+            ).replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            cache_key = (
+                f"{round(point['lat'], 4)}:{round(point['lon'], 4)}:"
+                f"{rounded_eta.strftime('%Y-%m-%d %H:%M')}"
+            )
+
+            if heat_cache is not None and cache_key in heat_cache:
+                return index, {
+                    **heat_cache[cache_key],
+                    "eta": eta.isoformat(),
+                    "distance_from_origin_m": point.get("distance_from_origin_m"),
+                    "cumulative_duration_seconds": point.get("cumulative_duration_seconds"),
+                }
+
             try:
                 heat_data = self.fortyguard.get_heat_data(
                     lat=point["lat"],
                     lon=point["lon"],
-                    start_date=eta.strftime("%Y-%m-%d"),
-                    start_time=eta.strftime("%H:%M"),
+                    start_date=rounded_eta.strftime("%Y-%m-%d"),
+                    start_time=rounded_eta.strftime("%H:%M"),
                     use_cache=False,
                 )
+                payload = self._success_result(point, heat_data)
+                if heat_cache is not None:
+                    heat_cache[cache_key] = payload
                 return index, {
-                    **self._success_result(point, heat_data),
+                    **payload,
                     "eta": eta.isoformat(),
                     "distance_from_origin_m": point.get("distance_from_origin_m"),
                     "cumulative_duration_seconds": point.get("cumulative_duration_seconds"),

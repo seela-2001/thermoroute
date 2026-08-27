@@ -52,9 +52,10 @@ class HeatAnalysisService:
             "analysis": analysis,
         }
 
-    def analyze_at_etas(self, temporal_points):
+    def analyze_at_etas(self, temporal_points, heat_cache=None):
         heat_data = self.heat_data_service.get_route_heat_at_etas(
-            temporal_points
+            temporal_points,
+            heat_cache=heat_cache,
         )
 
         successful = [point for point in heat_data if not point.get("error")]

@@ -1,28 +1,30 @@
+import { Routes, Route } from "react-router-dom"
 import { Header } from "@/components/ui/header-1"
 import { Hero } from "@/components/ui/animated-hero"
 import { FeatureSection } from "@/components/ui/feature-section"
-import { UseCasesSection } from "@/components/ui/use-cases-section"
 import { PopularRoutes } from "@/components/ui/popular-routes"
-import { FAQ } from "@/components/ui/faq-section"
 import { Footer } from "@/components/ui/footer"
-import PoweredBy from "@/components/ui/power-by"
+import { RoutePlanner } from "@/pages/RoutePlanner"
 
-const App = () => {
+const LandingPage = () => {
   return (
     <div className="w-full">
       <Header />
       <Hero />
-      <PoweredBy/>
       <FeatureSection />
-      <UseCasesSection />
       <PopularRoutes />
-      <FAQ />
       <Footer />
     </div>
   )
 }
 
+const App = () => {
+  return (
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/plan" element={<RoutePlanner />} />
+      </Routes>
+  )
+}
+
 export default App
-
-
-
