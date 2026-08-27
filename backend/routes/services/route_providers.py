@@ -3,8 +3,7 @@ import requests
 
 class RouteProvider:
     BASE_URL = "https://router.project-osrm.org/route/v1/driving"
-
-    MAX_ROUTES = 5
+    MAX_ROUTES = 3
     TIMEOUT = 15
 
     def get_routes(
@@ -23,6 +22,7 @@ class RouteProvider:
             "alternatives": "true",
             "overview": "full",
             "geometries": "geojson",
+            "steps": "true",
         }
         response = requests.get(
             url,
@@ -39,35 +39,34 @@ class RouteProvider:
 
     def _normalize_routes(self, data):
         routes = []
-        seen_geometries = set()
+        seen = set()
 
         for route in data.get("routes", []):
             geometry = route.get("geometry")
-
             if not geometry:
                 continue
 
-            geometry_key = self._geometry_key(geometry)
-
-            # OSRM can theoretically return very similar/duplicate
-            # alternatives. Do not expose duplicates to the backend.
-            if geometry_key in seen_geometries:
+            key = self._geometry_key(geometry)
+            if key in seen:
                 continue
 
-            seen_geometries.add(geometry_key)
+            seen.add(key)
+            duration_seconds = float(route.get("duration", 0))
 
             routes.append(
                 {
                     "id": f"route_{len(routes) + 1}",
                     "distance_km": round(
-                        route["distance"] / 1000,
+                        float(route.get("distance", 0)) / 1000,
                         2,
                     ),
                     "duration_min": round(
-                        route["duration"] / 60,
+                        duration_seconds / 60,
                         2,
                     ),
+                    "duration_seconds": duration_seconds,
                     "geometry": geometry,
+                    "legs": route.get("legs", []),
                 }
             )
 
@@ -78,18 +77,14 @@ class RouteProvider:
 
     @staticmethod
     def _geometry_key(geometry):
-        """
-        Create a stable key from the route geometry.
-
-        We intentionally use the full coordinate sequence so that
-        two genuinely different OSRM alternatives are preserved.
-        """
         coordinates = geometry.get("coordinates", [])
+        if not coordinates:
+            return ()
 
         return tuple(
             (
-                round(float(coordinate[0]), 6),
-                round(float(coordinate[1]), 6),
+                round(float(coordinate[0]), 5),
+                round(float(coordinate[1]), 5),
             )
             for coordinate in coordinates
             if len(coordinate) >= 2

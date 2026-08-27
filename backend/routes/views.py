@@ -26,8 +26,27 @@ class RouteAnalysisView(APIView):
             destination_lat=data["destination_lat"],
             destination_lng=data["destination_lng"],
             jurisdiction=data["jurisdiction"],
+            departure_start=data.get(
+                "departure_start"
+            ),
+            departure_end=data.get(
+                "departure_end"
+            ),
+            step_minutes=data.get(
+                "step_minutes",
+                30,
+            ),
+            weather_weight=data.get(
+                "weather_weight",
+                0.7,
+            ),
+            time_weight=data.get(
+                "time_weight",
+                0.3,
+            ),
         )
-        if not result["success"]:
+
+        if not result.get("success"):
             return Response(
                 {
                     "status": "error",
@@ -42,26 +61,46 @@ class RouteAnalysisView(APIView):
         return Response(
             {
                 "status": "success",
-                "recommended_route_id": (
-                    result["recommended_route_id"]
+                "recommended_route_id": result.get(
+                    "recommended_route_id"
                 ),
-                "routes_count": (
-                    result["routes_count"]
+                "routes_count": result.get(
+                    "routes_count",
+                    0,
                 ),
-                "routes": result["routes"],
-                "alternatives": (
-                    result["alternatives"]
+                "weights": result.get(
+                    "weights",
+                    {},
+                ),
+                "departure_count": result.get(
+                    "departure_count",
+                    0,
+                ),
+                "best_departure": result.get(
+                    "best_departure"
+                ),
+                "departure_recommendations": result.get(
+                    "departure_recommendations",
+                    [],
+                ),
+                "routes": result.get(
+                    "routes",
+                    [],
+                ),
+                "alternatives": result.get(
+                    "alternatives",
+                    [],
                 ),
             },
             status=status.HTTP_200_OK,
         )
+
 
 class LocationAutocompleteView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
-
         query = request.query_params.get(
             "q",
             "",
