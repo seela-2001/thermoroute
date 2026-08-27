@@ -19,7 +19,10 @@ class RouteSegmentSerializer(serializers.ModelSerializer):
 
 
 class RouteSerializer(serializers.ModelSerializer):
-    segments = RouteSegmentSerializer(many=True, read_only=True)
+    segments = RouteSegmentSerializer(
+        many=True,
+        read_only=True,
+    )
 
     class Meta:
         model = Route
@@ -78,17 +81,99 @@ class RouteSerializer(serializers.ModelSerializer):
 
         return attrs
 
-class RouteAnalysisRequestSerializer(serializers.Serializer):
-    origin_lat = serializers.FloatField()
-    origin_lng = serializers.FloatField()
-    destination_lat = serializers.FloatField()
-    destination_lng = serializers.FloatField()
-    departure_date = serializers.DateField(
-        required=False
+
+class RouteAnalysisRequestSerializer(
+    serializers.Serializer
+):
+    origin_lat = serializers.FloatField(
+        min_value=-90,
+        max_value=90,
     )
-    departure_time = serializers.TimeField(
-        required=False
+    origin_lng = serializers.FloatField(
+        min_value=-180,
+        max_value=180,
+    )
+    destination_lat = serializers.FloatField(
+        min_value=-90,
+        max_value=90,
+    )
+    destination_lng = serializers.FloatField(
+        min_value=-180,
+        max_value=180,
     )
     jurisdiction = serializers.CharField(
-        max_length=10
+        max_length=10,
     )
+    departure_start = serializers.DateTimeField(
+        required=False,
+    )
+    departure_end = serializers.DateTimeField(
+        required=False,
+    )
+    step_minutes = serializers.IntegerField(
+        required=False,
+        min_value=15,
+        max_value=120,
+        default=30,
+    )
+    weather_weight = serializers.FloatField(
+        required=False,
+        min_value=0,
+        max_value=1,
+        default=0.7,
+    )
+    time_weight = serializers.FloatField(
+        required=False,
+        min_value=0,
+        max_value=1,
+        default=0.3,
+    )
+
+    def validate(self, attrs):
+        start = attrs.get(
+            "departure_start"
+        )
+        end = attrs.get(
+            "departure_end"
+        )
+
+        if start and end and end <= start:
+            raise serializers.ValidationError(
+                {
+                    "departure_end": (
+                        "departure_end must be after "
+                        "departure_start."
+                    )
+                }
+            )
+
+        if start and start.tzinfo is None:
+            raise serializers.ValidationError(
+                {
+                    "departure_start": (
+                        "departure_start must include "
+                        "a timezone offset."
+                    )
+                }
+            )
+
+        if end and end.tzinfo is None:
+            raise serializers.ValidationError(
+                {
+                    "departure_end": (
+                        "departure_end must include "
+                        "a timezone offset."
+                    )
+                }
+            )
+
+        if (
+            attrs.get("weather_weight", 0)
+            + attrs.get("time_weight", 0)
+            <= 0
+        ):
+            raise serializers.ValidationError(
+                "weather_weight + time_weight must be greater than 0."
+            )
+
+        return attrs
