@@ -123,5 +123,3 @@ class TomTomRoutingService:
                 "success": False,
                 "error": str(exc),
             }
-
-
