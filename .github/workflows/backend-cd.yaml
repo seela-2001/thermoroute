@@ -32,7 +32,7 @@ jobs:
       - name: Set Image tags 
         id: meta
         run: |
-          SHA="${{ github.event.workflow_run.head_sha }}""
+          SHA="${{ github.event.workflow_run.head_sha }}"
           VERSION="V1.0.${{ github.envent.workflow_run.run_number }}"
 
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
