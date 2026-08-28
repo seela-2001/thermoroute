@@ -33,7 +33,7 @@ jobs:
         id: meta
         run: |
           SHA="${{ github.event.workflow_run.head_sha }}"
-          VERSION="V1.0.${{ github.envent.workflow_run.run_number }}"
+          VERSION="v1.0.${{ github.event.workflow_run.run_number }}"
 
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
