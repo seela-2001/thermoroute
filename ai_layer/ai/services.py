@@ -95,7 +95,7 @@ class RiskCalculator:
         self.config = config or Config.default()
 
     def _validate_segment_input(self, segment: dict) -> None:
-        required = ["id", "temperature", "humidity", "heat_index", "aqi"]
+        required = ["id", "temperature", "heat_index"]
         for field in required:
             if field not in segment:
                 raise ValidationError(f"Missing required field: {field}", field)
@@ -104,8 +104,10 @@ class RiskCalculator:
         if not isinstance(temp, (int, float)) or temp < -50 or temp > 60:
             raise ValidationError("Temperature must be between -50 and 60", "temperature")
 
-        humidity = segment["humidity"]
-        if not isinstance(humidity, (int, float)) or humidity < 0 or humidity > 100:
+        humidity = segment.get("humidity")
+        if humidity is not None and (
+            not isinstance(humidity, (int, float)) or humidity < 0 or humidity > 100
+        ):
             raise ValidationError("Humidity must be between 0 and 100", "humidity")
 
     def calculate_segment_risk(self, segment: dict) -> int:
@@ -114,16 +116,29 @@ class RiskCalculator:
         temp_score = min(segment["temperature"] / self.config.normalization.temperature_max, 1.0) * 100
         heat_index_score = min(segment["heat_index"] / self.config.normalization.heat_index_max, 1.0) * 100
 
-        humidity_optimal = self.config.normalization.humidity_optimal
-        humidity_score = min(abs(segment["humidity"] - humidity_optimal) / humidity_optimal, 1.0) * 100
-        aqi_score = min(segment["aqi"] / self.config.normalization.aqi_max, 1.0) * 100
+        # Only score metrics the API actually returned; re-normalize
+        # weights over the metrics that are present (no hardcoded data).
+        components = [
+            (temp_score, self.config.risk_weights.temperature),
+            (heat_index_score, self.config.risk_weights.heat_index),
+        ]
+
+        humidity = segment.get("humidity")
+        if isinstance(humidity, (int, float)):
+            humidity_optimal = self.config.normalization.humidity_optimal
+            humidity_score = min(abs(humidity - humidity_optimal) / humidity_optimal, 1.0) * 100
+            components.append((humidity_score, self.config.risk_weights.humidity))
+
+        aqi = segment.get("aqi")
+        if isinstance(aqi, (int, float)):
+            aqi_score = min(aqi / self.config.normalization.aqi_max, 1.0) * 100
+            components.append((aqi_score, self.config.risk_weights.aqi))
+
+        weight_total = sum(weight for _, weight in components)
 
         weighted = (
-            temp_score * self.config.risk_weights.temperature +
-            heat_index_score * self.config.risk_weights.heat_index +
-            humidity_score * self.config.risk_weights.humidity +
-            aqi_score * self.config.risk_weights.aqi
-        ) / 100
+            sum(score * weight for score, weight in components) / weight_total
+        )
 
         return int(round(weighted))
 

@@ -2,14 +2,17 @@ import math
 
 
 class RouteSamplingService:
+    MIN_SPACING_METERS = 500
+    MAX_SPACING_METERS = 2000
     DEFAULT_SPACING_METERS = 2000
     MIN_POINTS = 2
-    MAX_POINTS = 6
+    MAX_POINTS = 20
+    DEDUPE_TOLERANCE_M = 50.0
 
     def sample_route(
         self,
         route: dict,
-        spacing_meters: int = DEFAULT_SPACING_METERS,
+        spacing_meters: int | None = None,
     ) -> list[dict]:
         geometry = route.get("geometry") or {}
         coordinates = geometry.get("coordinates") or []
@@ -20,6 +23,9 @@ class RouteSamplingService:
         cumulative_distances = self._cumulative_distances(coordinates)
         total_distance = cumulative_distances[-1]
 
+        if spacing_meters is None:
+            spacing_meters = self._adaptive_spacing(total_distance)
+
         target_count = max(
             self.MIN_POINTS,
             math.ceil(total_distance / max(spacing_meters, 1)) + 1,
@@ -27,9 +33,27 @@ class RouteSamplingService:
         target_count = min(target_count, self.MAX_POINTS)
 
         targets = self._build_targets(total_distance, target_count)
+
+        waypoint_distances = self._waypoint_distances(
+            route,
+            coordinates,
+            cumulative_distances,
+        )
+
+        if len(targets) + len(waypoint_distances) > self.MAX_POINTS:
+            targets = self._thin_targets(
+                targets,
+                waypoint_distances,
+            )
+
+        merged = self._merge_targets(
+            targets,
+            waypoint_distances,
+        )
+
         samples = []
 
-        for target_distance in targets:
+        for target_distance in merged:
             index = self._find_segment(
                 cumulative_distances,
                 target_distance,
@@ -69,10 +93,114 @@ class RouteSamplingService:
                         cumulative_duration,
                         2,
                     ),
+                    "is_waypoint": target_distance in waypoint_distances,
                 }
             )
 
         return samples
+
+    def _adaptive_spacing(
+        self,
+        total_distance: float,
+    ) -> int:
+        """Choose spacing so a route gets up to MAX_POINTS samples:
+        short routes sample densely (down to 500 m), long routes
+        cap out at MAX_SPACING_METERS."""
+        if total_distance <= 0:
+            return self.MAX_SPACING_METERS
+
+        spacing = total_distance / (self.MAX_POINTS - 1)
+
+        return int(
+            max(
+                self.MIN_SPACING_METERS,
+                min(
+                    self.MAX_SPACING_METERS,
+                    spacing,
+                ),
+            )
+        )
+
+    @staticmethod
+    def _waypoint_distances(
+        route: dict,
+        coordinates: list,
+        cumulative_distances: list[float],
+    ) -> list[float]:
+        """Snap route waypoints (OSRM step maneuver locations) to
+        their distance along the route via nearest vertex."""
+        waypoints = route.get("waypoints") or []
+        if not waypoints:
+            return []
+
+        distances = []
+
+        for waypoint in waypoints:
+            lon = float(waypoint["lon"])
+            lat = float(waypoint["lat"])
+
+            best_index = 0
+            best_error = float("inf")
+
+            for index, coordinate in enumerate(coordinates):
+                error = (
+                    (float(coordinate[0]) - lon) ** 2
+                    + (float(coordinate[1]) - lat) ** 2
+                )
+
+                if error < best_error:
+                    best_error = error
+                    best_index = index
+
+            distances.append(cumulative_distances[best_index])
+
+        return sorted(set(distances))
+
+    def _thin_targets(
+        self,
+        targets: list[float],
+        waypoint_distances: list[float],
+    ) -> list[float]:
+        """Drop evenly-spaced targets (never waypoints), removing
+        points whose neighbors remain closest together."""
+        excess = len(targets) + len(waypoint_distances) - self.MAX_POINTS
+
+        droppable = targets[1:-1]
+        drop_count = min(excess, len(droppable))
+
+        if drop_count >= len(droppable):
+            return [targets[0], targets[-1]]
+
+        step = len(droppable) / drop_count if drop_count else 0
+        dropped_indices = {
+            int(i * step) for i in range(drop_count)
+        }
+
+        remaining = [
+            distance
+            for index, distance in enumerate(droppable)
+            if index not in dropped_indices
+        ]
+
+        return [targets[0], *remaining, targets[-1]]
+
+    @staticmethod
+    def _merge_targets(
+        targets: list[float],
+        waypoint_distances: list[float],
+    ) -> list[float]:
+        """Merge even targets with waypoint distances, deduping
+        points closer than DEDUPE_TOLERANCE_M apart."""
+        tolerance = RouteSamplingService.DEDUPE_TOLERANCE_M
+
+        merged = sorted(set(targets) | set(waypoint_distances))
+        deduped = [merged[0]] if merged else []
+
+        for distance in merged[1:]:
+            if distance - deduped[-1] >= tolerance:
+                deduped.append(distance)
+
+        return deduped
 
     @staticmethod
     def _estimate_duration(

@@ -19,6 +19,11 @@ class RouteAnalysisView(APIView):
             raise_exception=True
         )
         data = serializer.validated_data
+        data = self._resolve_text_endpoints(data)
+
+        if isinstance(data, Response):
+            return data
+
         service = RouteAnalysisService()
         result = service.analyze(
             origin_lat=data["origin_lat"],
@@ -43,6 +48,10 @@ class RouteAnalysisView(APIView):
             time_weight=data.get(
                 "time_weight",
                 0.3,
+            ),
+            traffic_aware=data.get(
+                "traffic_aware",
+                False,
             ),
         )
 
@@ -94,6 +103,45 @@ class RouteAnalysisView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+    @staticmethod
+    def _resolve_text_endpoints(data):
+        """Return (resolved_data, error_response). Resolves
+        origin_text/destination_text to coordinates via geocoding."""
+        location_service = LocationService()
+        resolved = dict(data)
+        errors = []
+
+        for endpoint in ("origin", "destination"):
+            text = str(
+                resolved.pop(f"{endpoint}_text", "") or ""
+            ).strip()
+
+            if not text:
+                continue
+
+            result = location_service.geocode(text)
+
+            if not result.get("success"):
+                errors.append(
+                    f"Failed to geocode {endpoint}: "
+                    f"{result.get('error', 'unknown error')}"
+                )
+                continue
+
+            resolved[f"{endpoint}_lat"] = result["lat"]
+            resolved[f"{endpoint}_lng"] = result["lon"]
+
+        if errors:
+            return Response(
+                {
+                    "status": "error",
+                    "errors": errors,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return resolved
 
 
 class LocationAutocompleteView(APIView):

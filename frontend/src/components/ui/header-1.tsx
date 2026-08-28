@@ -1,27 +1,20 @@
 'use client';
-
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
 import { useScroll } from '@/components/ui/use-scroll';
 import { createPortal } from 'react-dom';
-import { UsRoadsMegaMenu } from '@/components/ui/us-roads-mega-menu';
 import logo from '@/components/ui/images/642e6491-fdc6-4250-bf22-1af5448a877b.png';
 
 export function Header() {
     const [open, setOpen] = React.useState(false);
     const scrolled = useScroll(10);
 
-    const links: Array<{
-        label: string;
-        href?: string;
-        component?: React.ComponentType;
-    }> = [
+    const links = [
         {
-            label: 'US ROADS',
-            component: UsRoadsMegaMenu,
+            label: 'Features',
+            href: '#',
         },
         {
             label: 'Pricing',
@@ -52,21 +45,15 @@ export function Header() {
             })}
         >
             <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4">
-                <Link to="/" className="rounded-md p-1 ">
+                <a href="/" className="rounded-md p-1 ">
                     <img src={logo} alt="Logo" className="h-18 w-auto" />
-                </Link>
+                </a>
                 <div className="hidden items-center gap-2 md:flex">
-                    {links.map((link) => {
-                        if (link.component) {
-                            const Component = link.component;
-                            return <Component key={link.label} />;
-                        }
-                        return (
-                            <a key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" href={link.href}>
-                                {link.label}
-                            </a>
-                        );
-                    })}
+                    {links.map((link) => (
+                        <a key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" href={link.href}>
+                            {link.label}
+                        </a>
+                    ))}
                     <Button>Get Started</Button>
                 </div>
                 <Button
@@ -83,21 +70,15 @@ export function Header() {
             </nav>
             <MobileMenu open={open} className="flex flex-col justify-between gap-2">
                 <div className="grid gap-y-2">
-                    {links.map((link) => {
-                        if (link.component) {
-                            const Component = link.component;
-                            return <Component key={link.label} />;
-                        }
-                        return (
-                            <a
-                                key={link.label}
-                                className="hover:bg-gray-100 rounded-md justify-start px-4 py-2 text-sm font-medium"
-                                href={link.href}
-                            >
-                                {link.label}
-                            </a>
-                        );
-                    })}
+                    {links.map((link) => (
+                        <a
+                            key={link.label}
+                            className="hover:bg-gray-100 rounded-md justify-start px-4 py-2 text-sm font-medium"
+                            href={link.href}
+                        >
+                            {link.label}
+                        </a>
+                    ))}
                 </div>
                 <div className="flex flex-col gap-2">
                     <Button variant="outline" className="w-full">

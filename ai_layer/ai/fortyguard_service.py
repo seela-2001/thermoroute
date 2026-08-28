@@ -243,24 +243,67 @@ class FortyGuardService:
 
     def _parse_heatmap_result(self, result: dict, lat: float, lon: float, start_date: str, start_time: str) -> HeatData:
         temp = self._extract_temperature(result)
-        humidity = 65.0
+        humidity = self._extract_metric(result, [
+            "humidity", "average_humidity", "mean_humidity",
+            "Humidity_stats", "humidity_stats",
+        ])
+        uv_index = self._extract_metric(result, [
+            "uv_index", "uv", "average_uv_index",
+            "UV_stats", "uv_stats",
+        ])
+        aqi = self._extract_metric(result, [
+            "aqi", "average_aqi", "mean_aqi",
+            "AQI_stats", "aqi_stats",
+        ])
         heat_index = self._calculate_heat_index(temp, humidity)
 
         return HeatData(
             temperature=temp,
             humidity=humidity,
             heat_index=heat_index,
-            uv_index=0.0,
-            aqi=0.0,
+            uv_index=uv_index,
+            aqi=aqi,
             risk_level=self._calculate_risk_level(heat_index),
             location=f"{lat},{lon}",
             timestamp=f"{start_date}T{start_time}",
             source="fortyguard",
         )
 
+    def _extract_metric(self, result: dict, keys: list) -> Optional[float]:
+        """Extract a metric (humidity/uv/aqi) from map features or
+        stats blocks. Returns None when the API does not provide it —
+        no synthetic fallback values."""
+        if not isinstance(result, dict):
+            return None
+
+        map_data = result.get("map_data") or {}
+        for feature in map_data.get("features") or []:
+            props = feature.get("properties", {})
+            for key in keys:
+                if key in props and props[key] is not None:
+                    try:
+                        return float(props[key])
+                    except (ValueError, TypeError):
+                        pass
+
+        stats_data = result.get("stats_data") or {}
+        for key in keys:
+            block = stats_data.get(key)
+            if isinstance(block, dict):
+                for sub_key in ["mean", "avg", "average"]:
+                    if sub_key in block and block[sub_key] is not None:
+                        try:
+                            return float(block[sub_key])
+                        except (ValueError, TypeError):
+                            pass
+            elif isinstance(block, (int, float)):
+                return float(block)
+
+        return None
+
     def _extract_temperature(self, result: dict) -> float:
         if not isinstance(result, dict):
-            return 30.0
+            raise APIError("No temperature data in FortyGuard response", "fortyguard")
 
         map_data = result.get("map_data") or {}
         features = map_data.get("features") or []
@@ -298,11 +341,11 @@ class FortyGuardService:
             except (ValueError, TypeError):
                 pass
 
-        return 30.0
+        raise APIError("No temperature data in FortyGuard response", "fortyguard")
 
-    def _calculate_heat_index(self, temp_c: float, humidity: float) -> float:
+    def _calculate_heat_index(self, temp_c: float, humidity: Optional[float]) -> float:
         temp_f = temp_c * 9/5 + 32
-        if temp_f < 80:
+        if temp_f < 80 or humidity is None:
             return temp_c
         hi = 0.5 * (temp_f + 61.0 + ((temp_f - 68.0) * 1.2) + (humidity * 0.094))
         return (hi - 32) * 5/9
