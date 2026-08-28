@@ -30,6 +30,15 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Set Image tags
+        id: meta 
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha}}"
+          VERSION="v1.0.${{ github.event.workflow_run.run_number }}"
+
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: build-and-push-frontend
         uses: docker/build-push-action@v6
         with:
@@ -37,6 +46,6 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ github.event.workflow_run.head_sha}}
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.output.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.output.version }}
       

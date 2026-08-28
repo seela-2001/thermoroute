@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Modern thin horizontal scrollbar for camera carousel */
+.camera-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.camera-scroll::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 999px;
+  margin: 0 16px;
+}
+
+.camera-scroll::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.camera-scroll::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.camera-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}
+
+/* Modern thin vertical scrollbar for stop lists */
+.dock-scroll-y::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dock-scroll-y::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 999px;
+  margin: 4px 0;
+}
+
+.dock-scroll-y::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
+
+.dock-scroll-y::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.dock-scroll-y {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}

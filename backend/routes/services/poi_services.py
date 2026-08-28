@@ -9,8 +9,9 @@ class POIService:
     DEFAULT_RADIUS = 500
     DEFAULT_TIMEOUT = 5
 
-    MAX_POIS = 15
+    MAX_POIS = 50
     MAX_POINTS_PER_ROUTE = 2
+    MAX_POIS_PER_SEGMENT = 8
 
     CATEGORIES = (
         "catering.restaurant,"
@@ -179,6 +180,74 @@ class POIService:
         return self._limit_pois(
             all_pois
         )
+
+    def get_segment_pois(
+        self,
+        segment_points: list[dict[str, Any]],
+        radius: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Get POIs for EVERY segment point along a route.
+
+        Each segment gets its own nearby-POI search. POIs are
+        deduplicated across segments (a POI stays with the closest
+        segment that found it). Each segment's list is capped at
+        MAX_POIS_PER_SEGMENT (priority types first, then closest).
+
+        Args:
+            segment_points: list of dicts with at least
+                {"lat", "lon"} and optionally "distance_from_origin_m"
+
+        Returns:
+            List of segment dicts, aligned 1:1 with segment_points:
+            {"lat", "lon", "distance_from_origin_m", "pois": [...]}
+        """
+        if not segment_points:
+            return []
+
+        segments = []
+        seen_pois = set()
+
+        for point in segment_points:
+            lat = point.get("lat")
+            lon = point.get("lon")
+
+            if lat is None or lon is None:
+                segments.append({
+                    "lat": lat,
+                    "lon": lon,
+                    "distance_from_origin_m": point.get("distance_from_origin_m"),
+                    "pois": [],
+                })
+                continue
+
+            pois = self.get_nearby_pois(
+                lat=lat,
+                lon=lon,
+                radius=radius,
+            )
+
+            segment_pois = []
+            for poi in pois:
+                unique_key = self._poi_key(poi)
+
+                if unique_key in seen_pois:
+                    continue
+
+                seen_pois.add(unique_key)
+                segment_pois.append(poi)
+
+                if len(segment_pois) >= self.MAX_POIS_PER_SEGMENT:
+                    break
+
+            segments.append({
+                "lat": lat,
+                "lon": lon,
+                "distance_from_origin_m": point.get("distance_from_origin_m"),
+                "pois": self._limit_pois(segment_pois),
+            })
+
+        return segments
 
     @staticmethod
     def _resolve_search_points(

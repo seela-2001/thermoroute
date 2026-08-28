@@ -1,0 +1,603 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
+import math
+import os
+
+from .route_sampling_service import RouteSamplingService
+from .poi_services import POIService
+from .camera_services import CameraService
+from .tomtom_routing_services import TomTomRoutingService
+from heat.services.heat_analysis_services import HeatAnalysisService
+
+
+class TemporalRouteEvaluationService:
+    DEFAULT_STEP_MINUTES = 30
+    DEFAULT_SPACING_METERS = 2000
+    MAX_DEPARTURE_HOURS = 12
+    MAX_DEPARTURES = 97
+    MAX_HEAT_WORKERS = 12
+    DEFAULT_WEATHER_WEIGHT = 0.7
+    DEFAULT_TIME_WEIGHT = 0.3
+    DEFAULT_MAX_HEAT_POINTS_PER_ROUTE = 5
+
+    def __init__(self):
+        self.sampling_service = RouteSamplingService()
+        self.heat_analysis_service = HeatAnalysisService()
+        self.poi_service = POIService()
+        self.camera_service = CameraService()
+        self.tomtom_service = TomTomRoutingService()
+        try:
+            self.max_heat_points_per_route = int(
+                os.getenv(
+                    "MAX_HEAT_POINTS_PER_ROUTE",
+                    self.DEFAULT_MAX_HEAT_POINTS_PER_ROUTE,
+                )
+            )
+        except (TypeError, ValueError):
+            self.max_heat_points_per_route = (
+                self.DEFAULT_MAX_HEAT_POINTS_PER_ROUTE
+            )
+
+    def evaluate(
+        self,
+        routes: list[dict],
+        origin: dict[str, float],
+        destination: dict[str, float],
+        jurisdiction: str,
+        departure_start: datetime,
+        departure_end: datetime,
+        step_minutes: int = DEFAULT_STEP_MINUTES,
+        weather_weight: float = DEFAULT_WEATHER_WEIGHT,
+        time_weight: float = DEFAULT_TIME_WEIGHT,
+        traffic_aware: bool = False,
+    ) -> dict:
+        if not routes:
+            return {"success": False, "errors": ["No routes found"]}
+
+        if departure_end < departure_start:
+            return {
+                "success": False,
+                "errors": ["departure_end must be after departure_start"],
+            }
+
+        if departure_end - departure_start > timedelta(hours=self.MAX_DEPARTURE_HOURS):
+            return {
+                "success": False,
+                "errors": ["Departure window cannot exceed 12 hours"],
+            }
+
+        step_minutes = max(int(step_minutes), 1)
+        departure_times = self._build_departure_times(
+            departure_start,
+            departure_end,
+            step_minutes,
+        )
+
+        if len(departure_times) > self.MAX_DEPARTURES:
+            return {
+                "success": False,
+                "errors": [
+                    f"Too many departure evaluations. Maximum is {self.MAX_DEPARTURES}."
+                ],
+            }
+
+        weight_total = weather_weight + time_weight
+        if weight_total <= 0:
+            return {
+                "success": False,
+                "errors": [
+                    "weather_weight + time_weight must be greater than 0"
+                ],
+            }
+
+        weather_weight /= weight_total
+        time_weight /= weight_total
+
+        route_context = self._build_route_context(
+            routes,
+            origin,
+            destination,
+            jurisdiction,
+        )
+
+        departure_results = []
+        heat_cache: dict = {}
+
+        for departure_time in departure_times:
+            evaluated_routes = self._evaluate_departure(
+                route_context,
+                departure_time,
+                weather_weight,
+                time_weight,
+                traffic_aware,
+                heat_cache,
+            )
+
+            evaluated_routes.sort(
+                key=lambda route: (
+                    route["route_score"]
+                    if route.get("route_score") is not None
+                    else float("inf")
+                )
+            )
+
+            departure_results.append(
+                {
+                    "departure_time": departure_time.isoformat(),
+                    "recommended_route_id": (
+                        evaluated_routes[0]["id"]
+                        if evaluated_routes
+                        and evaluated_routes[0].get("route_score") is not None
+                        else None
+                    ),
+                    "routes": evaluated_routes,
+                }
+            )
+
+        best_departure = self._best_departure(departure_results)
+
+        return {
+            "success": True,
+            "weights": {
+                "weather": round(weather_weight, 3),
+                "time": round(time_weight, 3),
+            },
+            "departure_count": len(departure_results),
+            "departure_recommendations": [
+                {
+                    "departure_time": result["departure_time"],
+                    "recommended_route_id": result["recommended_route_id"],
+                    "route_score": self._recommended_score(result),
+                }
+                for result in departure_results
+            ],
+            "best_departure": best_departure,
+            "routes": self._build_route_summary(departure_results),
+        }
+
+    def _build_route_context(
+        self,
+        routes,
+        origin,
+        destination,
+        jurisdiction,
+    ):
+        contexts = []
+
+        for route in routes:
+            samples = self.sampling_service.sample_route(
+                route,
+                spacing_meters=self.DEFAULT_SPACING_METERS,
+            )
+
+            # POIs for EVERY route segment (same points used for heat)
+            try:
+                segments = self.poi_service.get_segment_pois(
+                    self._subsample_for_heat(samples)
+                )
+                if not isinstance(segments, list):
+                    segments = []
+            except Exception as exc:
+                print(f"POI service unavailable: {exc}")
+                segments = []
+
+            aggregate_pois = [
+                poi
+                for segment in segments
+                for poi in segment.get("pois", [])
+            ]
+
+            try:
+                cameras = self.camera_service.get_cameras_for_route(
+                    route=route,
+                    jurisdiction=jurisdiction,
+                )
+                if not isinstance(cameras, list):
+                    cameras = []
+            except Exception as exc:
+                print(f"Camera service unavailable: {exc}")
+                cameras = []
+
+            contexts.append(
+                {
+                    "route": route,
+                    "samples": samples,
+                    "segments": segments,
+                    "pois": aggregate_pois,
+                    "cameras": cameras,
+                }
+            )
+
+        return contexts
+
+    def _evaluate_departure(
+        self,
+        route_context,
+        departure_time,
+        weather_weight,
+        time_weight,
+        traffic_aware,
+        heat_cache,
+    ):
+        evaluated_routes = []
+        jobs = []
+
+        with ThreadPoolExecutor(
+            max_workers=min(
+                self.MAX_HEAT_WORKERS,
+                max(len(route_context), 1),
+            )
+        ) as executor:
+            for context in route_context:
+                jobs.append(
+                    (
+                        context,
+                        executor.submit(
+                            self._evaluate_route_samples,
+                            context,
+                            departure_time,
+                            traffic_aware,
+                            heat_cache,
+                        ),
+                    )
+                )
+
+            for context, future in jobs:
+                route = context["route"]
+                try:
+                    heat_result, duration_override = future.result()
+                except Exception as exc:
+                    evaluated_routes.append(
+                        self._failed_route(
+                            route,
+                            context,
+                            str(exc),
+                        )
+                    )
+                    continue
+
+                evaluated_routes.append(
+                    self._build_evaluated_route(
+                        route,
+                        context,
+                        heat_result,
+                        duration_override,
+                    )
+                )
+
+        self._apply_time_scores(evaluated_routes)
+
+        for route in evaluated_routes:
+            weather_score = route.get("weather_score")
+            time_score = route.get("time_score")
+
+            if weather_score is None or time_score is None:
+                route["route_score"] = None
+                continue
+
+            route["route_score"] = round(
+                weather_score * weather_weight
+                + time_score * time_weight,
+                2,
+            )
+
+        return evaluated_routes
+
+    def _evaluate_route_samples(
+        self,
+        context,
+        departure_time,
+        traffic_aware,
+        heat_cache,
+    ):
+        """Get traffic-aware travel time (TomTom, when opted in),
+        rescale sample durations, attach ETAs, then run heat
+        analysis at those ETAs."""
+        samples = context["samples"]
+        samples, tomtom_total = self._rescale_durations(
+            samples,
+            departure_time,
+            traffic_aware,
+        )
+
+        samples = self._subsample_for_heat(samples)
+
+        temporal_points = self._attach_etas(
+            samples,
+            departure_time,
+        )
+
+        heat_result = (
+            self.heat_analysis_service.analyze_at_etas(
+                temporal_points,
+                heat_cache=heat_cache,
+            )
+        )
+
+        return heat_result, tomtom_total
+
+    def _subsample_for_heat(self, samples):
+        """Cap FortyGuard queries per (route, departure) by evenly
+        subsampling the route's samples (first and last always kept)."""
+        cap = self.max_heat_points_per_route
+
+        if cap <= 0 or len(samples) <= cap:
+            return samples
+
+        indices = [
+            round(i * (len(samples) - 1) / (cap - 1))
+            for i in range(cap)
+        ]
+
+        return [samples[index] for index in dict.fromkeys(indices)]
+
+    def _rescale_durations(
+        self,
+        samples,
+        departure_time,
+        traffic_aware,
+    ):
+        if not traffic_aware or not self.tomtom_service.available:
+            return samples, None
+
+        if not samples:
+            return samples, None
+
+        osrm_total = float(
+            samples[-1].get(
+                "cumulative_duration_seconds",
+                0,
+            )
+        )
+
+        if osrm_total <= 0:
+            return samples, None
+
+        geometry = [
+            {"lat": sample["lat"], "lon": sample["lon"]}
+            for sample in samples
+        ]
+
+        result = self.tomtom_service.get_travel_time(
+            geometry,
+            departure_time,
+        )
+
+        if not result.get("success"):
+            return samples, None
+
+        tomtom_total = float(
+            result["travel_time_seconds"]
+        )
+
+        ratio = tomtom_total / osrm_total
+
+        if not math.isfinite(ratio) or ratio <= 0:
+            return samples, None
+
+        print(
+            "TomTom travel time applied: "
+            f"ratio={ratio:.3f} "
+            f"(departure {departure_time.isoformat()})"
+        )
+
+        rescaled = [
+            {
+                **sample,
+                "cumulative_duration_seconds": round(
+                    float(
+                        sample.get(
+                            "cumulative_duration_seconds",
+                            0,
+                        )
+                    )
+                    * ratio,
+                    2,
+                ),
+            }
+            for sample in samples
+        ]
+
+        return rescaled, tomtom_total
+
+    @staticmethod
+    def _build_evaluated_route(
+        route,
+        context,
+        heat_result,
+        duration_override=None,
+    ):
+        duration_min = route["duration_min"]
+
+        if duration_override is not None:
+            duration_min = round(
+                float(duration_override) / 60,
+                2,
+            )
+
+        if not heat_result.get("success"):
+            return {
+                "id": route["id"],
+                "distance_km": route["distance_km"],
+                "duration_min": duration_min,
+                "geometry": route.get("geometry"),
+                "weather_score": None,
+                "time_score": None,
+                "route_score": None,
+                "risk": None,
+                "heat_data": heat_result.get("heat_data", []),
+                "error": heat_result.get("errors", ["Heat analysis failed"]),
+                "pois": context["pois"],
+                "segments": context["segments"],
+                "cameras": context["cameras"],
+                "samples": [],
+            }
+
+        analysis = heat_result["analysis"]
+
+        return {
+            "id": route["id"],
+            "distance_km": route["distance_km"],
+            "duration_min": duration_min,
+            "geometry": route.get("geometry"),
+            "weather_score": float(analysis.overall_risk_score),
+            "time_score": None,
+            "route_score": None,
+            "risk": {
+                "score": analysis.overall_risk_score,
+                "level": analysis.risk_level,
+                "critical_segments": analysis.critical_segments,
+                "metrics": analysis.metrics,
+            },
+            "heat_data": heat_result["heat_data"],
+            "pois": context["pois"],
+            "segments": context["segments"],
+            "cameras": context["cameras"],
+            "samples": heat_result["heat_data"],
+            "partial": heat_result.get("partial", False),
+            "errors": heat_result.get("errors", []),
+        }
+
+    @staticmethod
+    def _failed_route(route, context, error):
+        return {
+            "id": route["id"],
+            "distance_km": route["distance_km"],
+            "duration_min": route["duration_min"],
+            "geometry": route.get("geometry"),
+            "weather_score": None,
+            "time_score": None,
+            "route_score": None,
+            "risk": None,
+            "heat_data": [],
+            "error": [error],
+            "pois": context["pois"],
+            "segments": context["segments"],
+            "cameras": context["cameras"],
+            "samples": [],
+        }
+
+    @staticmethod
+    def _build_departure_times(start, end, step_minutes):
+        step = timedelta(minutes=step_minutes)
+        times = []
+        current = start
+
+        while current <= end:
+            times.append(current)
+            current += step
+
+        return times
+
+    @staticmethod
+    def _attach_etas(samples, departure_time):
+        result = []
+
+        for sample in samples:
+            eta = departure_time + timedelta(
+                seconds=float(
+                    sample.get("cumulative_duration_seconds", 0)
+                )
+            )
+            result.append({**sample, "eta": eta})
+
+        return result
+
+    @staticmethod
+    def _apply_time_scores(routes):
+        valid = [
+            route
+            for route in routes
+            if route.get("duration_min") is not None
+        ]
+
+        if not valid:
+            return
+
+        durations = [route["duration_min"] for route in valid]
+        minimum = min(durations)
+        maximum = max(durations)
+        spread = maximum - minimum
+
+        for route in routes:
+            duration = route.get("duration_min")
+            if duration is None:
+                route["time_score"] = None
+            elif spread == 0:
+                route["time_score"] = 0.0
+            else:
+                route["time_score"] = round(
+                    ((duration - minimum) / spread) * 100,
+                    2,
+                )
+
+    @staticmethod
+    def _recommended_score(departure_result):
+        routes = departure_result.get("routes", [])
+        if not routes:
+            return None
+        return routes[0].get("route_score")
+
+    @staticmethod
+    def _best_departure(departure_results):
+        valid = [
+            result
+            for result in departure_results
+            if result.get("recommended_route_id")
+            and result.get("routes")
+            and result["routes"][0].get("route_score") is not None
+        ]
+
+        if not valid:
+            return None
+
+        best = min(
+            valid,
+            key=lambda result: result["routes"][0]["route_score"],
+        )
+        route = best["routes"][0]
+
+        return {
+            "departure_time": best["departure_time"],
+            "recommended_route_id": route["id"],
+            "route_score": route["route_score"],
+            "weather_score": route["weather_score"],
+            "time_score": route["time_score"],
+        }
+
+    @staticmethod
+    def _build_route_summary(departure_results):
+        route_map = {}
+
+        for departure in departure_results:
+            departure_time = departure["departure_time"]
+
+            for route in departure.get("routes", []):
+                route_id = route["id"]
+
+                if route_id not in route_map:
+                    route_map[route_id] = {
+                        "id": route_id,
+                        "distance_km": route["distance_km"],
+                        "duration_min": route["duration_min"],
+                        "geometry": route.get("geometry"),
+                        "evaluations": [],
+                        "pois": route.get("pois", []),
+                        "segments": route.get("segments", []),
+                        "cameras": route.get("cameras", []),
+                    }
+
+                route_map[route_id]["evaluations"].append(
+                    {
+                        "departure_time": departure_time,
+                        "route_score": route.get("route_score"),
+                        "weather_score": route.get("weather_score"),
+                        "time_score": route.get("time_score"),
+                        "risk": route.get("risk"),
+                        "heat_data": route.get("heat_data", []),
+                        "partial": route.get("partial", False),
+                        "errors": route.get("errors", []),
+                    }
+                )
+
+        return list(route_map.values())

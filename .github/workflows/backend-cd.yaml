@@ -9,7 +9,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-and-push:
@@ -29,6 +29,15 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }} 
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Set Image tags 
+        id: meta
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha }}"
+          VERSION="v1.0.${{ github.event.workflow_run.run_number }}"
+
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Build and Push backend image
         uses: docker/build-push-action@v6
         with:
@@ -36,5 +45,5 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:${{ github.event.workflow_run.head_sha }}
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:${{ steps.meta.outputs.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-backend:${{ steps.meta.outputs.version }}
