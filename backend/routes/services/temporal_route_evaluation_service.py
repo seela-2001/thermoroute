@@ -1,27 +1,42 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+import math
+import os
 
 from .route_sampling_service import RouteSamplingService
 from .poi_services import POIService
 from .camera_services import CameraService
+from .tomtom_routing_services import TomTomRoutingService
 from heat.services.heat_analysis_services import HeatAnalysisService
 
 
 class TemporalRouteEvaluationService:
     DEFAULT_STEP_MINUTES = 30
     DEFAULT_SPACING_METERS = 2000
-    MAX_DEPARTURE_HOURS = 48
+    MAX_DEPARTURE_HOURS = 12
     MAX_DEPARTURES = 97
-    MAX_TEMPORAL_POINTS_PER_ROUTE = 2
     MAX_HEAT_WORKERS = 12
     DEFAULT_WEATHER_WEIGHT = 0.7
     DEFAULT_TIME_WEIGHT = 0.3
+    DEFAULT_MAX_HEAT_POINTS_PER_ROUTE = 5
 
     def __init__(self):
         self.sampling_service = RouteSamplingService()
         self.heat_analysis_service = HeatAnalysisService()
         self.poi_service = POIService()
         self.camera_service = CameraService()
+        self.tomtom_service = TomTomRoutingService()
+        try:
+            self.max_heat_points_per_route = int(
+                os.getenv(
+                    "MAX_HEAT_POINTS_PER_ROUTE",
+                    self.DEFAULT_MAX_HEAT_POINTS_PER_ROUTE,
+                )
+            )
+        except (TypeError, ValueError):
+            self.max_heat_points_per_route = (
+                self.DEFAULT_MAX_HEAT_POINTS_PER_ROUTE
+            )
 
     def evaluate(
         self,
@@ -34,6 +49,7 @@ class TemporalRouteEvaluationService:
         step_minutes: int = DEFAULT_STEP_MINUTES,
         weather_weight: float = DEFAULT_WEATHER_WEIGHT,
         time_weight: float = DEFAULT_TIME_WEIGHT,
+        traffic_aware: bool = False,
     ) -> dict:
         if not routes:
             return {"success": False, "errors": ["No routes found"]}
@@ -47,7 +63,7 @@ class TemporalRouteEvaluationService:
         if departure_end - departure_start > timedelta(hours=self.MAX_DEPARTURE_HOURS):
             return {
                 "success": False,
-                "errors": ["Departure window cannot exceed 48 hours"],
+                "errors": ["Departure window cannot exceed 12 hours"],
             }
 
         step_minutes = max(int(step_minutes), 1)
@@ -85,6 +101,7 @@ class TemporalRouteEvaluationService:
         )
 
         departure_results = []
+        heat_cache: dict = {}
 
         for departure_time in departure_times:
             evaluated_routes = self._evaluate_departure(
@@ -92,6 +109,8 @@ class TemporalRouteEvaluationService:
                 departure_time,
                 weather_weight,
                 time_weight,
+                traffic_aware,
+                heat_cache,
             )
 
             evaluated_routes.sort(
@@ -151,23 +170,22 @@ class TemporalRouteEvaluationService:
                 spacing_meters=self.DEFAULT_SPACING_METERS,
             )
 
-            if len(samples) > self.MAX_TEMPORAL_POINTS_PER_ROUTE:
-                samples = self._select_temporal_points(samples)
-
+            # POIs for EVERY route segment (same points used for heat)
             try:
-                pois = self.poi_service.get_pois(
-                    origin=origin,
-                    destination=destination,
-                    route_points=[
-                        {"lat": point["lat"], "lon": point["lon"]}
-                        for point in samples
-                    ],
+                segments = self.poi_service.get_segment_pois(
+                    self._subsample_for_heat(samples)
                 )
-                if not isinstance(pois, list):
-                    pois = []
+                if not isinstance(segments, list):
+                    segments = []
             except Exception as exc:
                 print(f"POI service unavailable: {exc}")
-                pois = []
+                segments = []
+
+            aggregate_pois = [
+                poi
+                for segment in segments
+                for poi in segment.get("pois", [])
+            ]
 
             try:
                 cameras = self.camera_service.get_cameras_for_route(
@@ -184,7 +202,8 @@ class TemporalRouteEvaluationService:
                 {
                     "route": route,
                     "samples": samples,
-                    "pois": pois,
+                    "segments": segments,
+                    "pois": aggregate_pois,
                     "cameras": cameras,
                 }
             )
@@ -197,6 +216,8 @@ class TemporalRouteEvaluationService:
         departure_time,
         weather_weight,
         time_weight,
+        traffic_aware,
+        heat_cache,
     ):
         evaluated_routes = []
         jobs = []
@@ -208,16 +229,15 @@ class TemporalRouteEvaluationService:
             )
         ) as executor:
             for context in route_context:
-                temporal_points = self._attach_etas(
-                    context["samples"],
-                    departure_time,
-                )
                 jobs.append(
                     (
                         context,
                         executor.submit(
-                            self.heat_analysis_service.analyze_at_etas,
-                            temporal_points,
+                            self._evaluate_route_samples,
+                            context,
+                            departure_time,
+                            traffic_aware,
+                            heat_cache,
                         ),
                     )
                 )
@@ -225,7 +245,7 @@ class TemporalRouteEvaluationService:
             for context, future in jobs:
                 route = context["route"]
                 try:
-                    heat_result = future.result()
+                    heat_result, duration_override = future.result()
                 except Exception as exc:
                     evaluated_routes.append(
                         self._failed_route(
@@ -241,6 +261,7 @@ class TemporalRouteEvaluationService:
                         route,
                         context,
                         heat_result,
+                        duration_override,
                     )
                 )
 
@@ -262,20 +283,144 @@ class TemporalRouteEvaluationService:
 
         return evaluated_routes
 
-    @staticmethod
-    def _select_temporal_points(samples):
-        if len(samples) <= 2:
+    def _evaluate_route_samples(
+        self,
+        context,
+        departure_time,
+        traffic_aware,
+        heat_cache,
+    ):
+        """Get traffic-aware travel time (TomTom, when opted in),
+        rescale sample durations, attach ETAs, then run heat
+        analysis at those ETAs."""
+        samples = context["samples"]
+        samples, tomtom_total = self._rescale_durations(
+            samples,
+            departure_time,
+            traffic_aware,
+        )
+
+        samples = self._subsample_for_heat(samples)
+
+        temporal_points = self._attach_etas(
+            samples,
+            departure_time,
+        )
+
+        heat_result = (
+            self.heat_analysis_service.analyze_at_etas(
+                temporal_points,
+                heat_cache=heat_cache,
+            )
+        )
+
+        return heat_result, tomtom_total
+
+    def _subsample_for_heat(self, samples):
+        """Cap FortyGuard queries per (route, departure) by evenly
+        subsampling the route's samples (first and last always kept)."""
+        cap = self.max_heat_points_per_route
+
+        if cap <= 0 or len(samples) <= cap:
             return samples
 
-        return [samples[0], samples[-1]]
+        indices = [
+            round(i * (len(samples) - 1) / (cap - 1))
+            for i in range(cap)
+        ]
+
+        return [samples[index] for index in dict.fromkeys(indices)]
+
+    def _rescale_durations(
+        self,
+        samples,
+        departure_time,
+        traffic_aware,
+    ):
+        if not traffic_aware or not self.tomtom_service.available:
+            return samples, None
+
+        if not samples:
+            return samples, None
+
+        osrm_total = float(
+            samples[-1].get(
+                "cumulative_duration_seconds",
+                0,
+            )
+        )
+
+        if osrm_total <= 0:
+            return samples, None
+
+        geometry = [
+            {"lat": sample["lat"], "lon": sample["lon"]}
+            for sample in samples
+        ]
+
+        result = self.tomtom_service.get_travel_time(
+            geometry,
+            departure_time,
+        )
+
+        if not result.get("success"):
+            return samples, None
+
+        tomtom_total = float(
+            result["travel_time_seconds"]
+        )
+
+        ratio = tomtom_total / osrm_total
+
+        if not math.isfinite(ratio) or ratio <= 0:
+            return samples, None
+
+        print(
+            "TomTom travel time applied: "
+            f"ratio={ratio:.3f} "
+            f"(departure {departure_time.isoformat()})"
+        )
+
+        rescaled = [
+            {
+                **sample,
+                "cumulative_duration_seconds": round(
+                    float(
+                        sample.get(
+                            "cumulative_duration_seconds",
+                            0,
+                        )
+                    )
+                    * ratio,
+                    2,
+                ),
+            }
+            for sample in samples
+        ]
+
+        return rescaled, tomtom_total
 
     @staticmethod
-    def _build_evaluated_route(route, context, heat_result):
+    def _build_evaluated_route(
+        route,
+        context,
+        heat_result,
+        duration_override=None,
+    ):
+        duration_min = route["duration_min"]
+
+        if duration_override is not None:
+            duration_min = round(
+                float(duration_override) / 60,
+                2,
+            )
+
         if not heat_result.get("success"):
             return {
                 "id": route["id"],
                 "distance_km": route["distance_km"],
-                "duration_min": route["duration_min"],
+                "duration_min": duration_min,
+                "geometry": route.get("geometry"),
                 "weather_score": None,
                 "time_score": None,
                 "route_score": None,
@@ -283,6 +428,7 @@ class TemporalRouteEvaluationService:
                 "heat_data": heat_result.get("heat_data", []),
                 "error": heat_result.get("errors", ["Heat analysis failed"]),
                 "pois": context["pois"],
+                "segments": context["segments"],
                 "cameras": context["cameras"],
                 "samples": [],
             }
@@ -292,7 +438,8 @@ class TemporalRouteEvaluationService:
         return {
             "id": route["id"],
             "distance_km": route["distance_km"],
-            "duration_min": route["duration_min"],
+            "duration_min": duration_min,
+            "geometry": route.get("geometry"),
             "weather_score": float(analysis.overall_risk_score),
             "time_score": None,
             "route_score": None,
@@ -304,6 +451,7 @@ class TemporalRouteEvaluationService:
             },
             "heat_data": heat_result["heat_data"],
             "pois": context["pois"],
+            "segments": context["segments"],
             "cameras": context["cameras"],
             "samples": heat_result["heat_data"],
             "partial": heat_result.get("partial", False),
@@ -316,6 +464,7 @@ class TemporalRouteEvaluationService:
             "id": route["id"],
             "distance_km": route["distance_km"],
             "duration_min": route["duration_min"],
+            "geometry": route.get("geometry"),
             "weather_score": None,
             "time_score": None,
             "route_score": None,
@@ -323,6 +472,7 @@ class TemporalRouteEvaluationService:
             "heat_data": [],
             "error": [error],
             "pois": context["pois"],
+            "segments": context["segments"],
             "cameras": context["cameras"],
             "samples": [],
         }
@@ -430,8 +580,10 @@ class TemporalRouteEvaluationService:
                         "id": route_id,
                         "distance_km": route["distance_km"],
                         "duration_min": route["duration_min"],
+                        "geometry": route.get("geometry"),
                         "evaluations": [],
                         "pois": route.get("pois", []),
+                        "segments": route.get("segments", []),
                         "cameras": route.get("cameras", []),
                     }
 
