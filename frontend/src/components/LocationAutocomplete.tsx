@@ -36,7 +36,7 @@ export function LocationAutocomplete({
   onChange,
   onLocationSelect,
   placeholder = "Enter location",
-  disabled = false
+  disabled = false,
 }: LocationAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -45,30 +45,26 @@ export function LocationAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY || "ee898c84084e48f7b96ac399ea305a11";
+  const GEOAPIFY_API_KEY =
+    import.meta.env.VITE_GEOAPIFY_API_KEY || "ee898c84084e48f7b96ac399ea305a11";
 
   useEffect(() => {
-    // Close suggestions when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
-    // Only search if suggestions are visible and value is long enough
     if (!showSuggestions || value.trim().length < 2) return;
 
     const debounceTimer = setTimeout(async () => {
-      // Cancel previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-
       abortControllerRef.current = new AbortController();
       setLoading(true);
 
@@ -77,29 +73,26 @@ export function LocationAutocomplete({
           `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(value)}&apiKey=${GEOAPIFY_API_KEY}&limit=8&lang=en`,
           { signal: abortControllerRef.current.signal }
         );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch locations");
-        }
+        if (!response.ok) throw new Error("Failed to fetch locations");
 
         const data = (await response.json()) as { features?: GeoapifyFeature[] };
-
         if (data.features && data.features.length > 0) {
-          const results: Suggestion[] = data.features.map((feature) => ({
-            formatted: feature.properties.formatted,
-            lat: feature.properties.lat,
-            lon: feature.properties.lon,
-            city: feature.properties.city,
-            country: feature.properties.country,
-            state: feature.properties.state,
-            stateCode: feature.properties.state_code,
-          }));
-          setSuggestions(results);
+          setSuggestions(
+            data.features.map((f) => ({
+              formatted: f.properties.formatted,
+              lat: f.properties.lat,
+              lon: f.properties.lon,
+              city: f.properties.city,
+              country: f.properties.country,
+              state: f.properties.state,
+              stateCode: f.properties.state_code,
+            }))
+          );
         } else {
           setSuggestions([]);
         }
       } catch (error) {
-        if ((error as Error).name !== 'AbortError') {
+        if ((error as Error).name !== "AbortError") {
           console.error("Error searching locations:", error);
         }
       } finally {
@@ -129,7 +122,7 @@ export function LocationAutocomplete({
       name: suggestion.formatted,
       lat: suggestion.lat,
       lng: suggestion.lon,
-      state: suggestion.stateCode || suggestion.state
+      state: suggestion.stateCode || suggestion.state,
     });
   };
 
@@ -142,7 +135,10 @@ export function LocationAutocomplete({
   return (
     <div ref={containerRef} className="relative">
       <div className="relative">
-        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400 z-10" />
+        <MapPin
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 z-10"
+          style={{ color: "var(--color-accent)" }}
+        />
         <input
           ref={inputRef}
           type="text"
@@ -150,41 +146,97 @@ export function LocationAutocomplete({
           onChange={handleInputChange}
           disabled={disabled}
           placeholder={placeholder}
-          className="w-full h-[52px] pl-12 pr-10 border border-gray-300 rounded-[10px] text-[15px] placeholder:text-gray-400 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 hover:border-gray-400 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
+          style={{
+            width: "100%",
+            height: 52,
+            paddingLeft: 44,
+            paddingRight: 36,
+            background: "var(--color-surface)",
+            border: "1.5px solid var(--color-border)",
+            borderRadius: "var(--radius-md)",
+            fontSize: 15,
+            color: "var(--color-text-primary)",
+            fontFamily: "var(--font-body)",
+            outline: "none",
+            transition: "border-color 0.15s, box-shadow 0.15s",
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-accent)";
+            e.currentTarget.style.boxShadow = "0 0 0 3px rgba(249,115,22,0.12)";
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = "var(--color-border)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+          className="disabled:opacity-60 disabled:cursor-not-allowed"
         />
-        {value && !disabled && (
+        {value && !disabled && !loading && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full transition-colors"
+            style={{ color: "var(--color-text-muted)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--color-base)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            }}
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-accent)" }} />
           </div>
         )}
       </div>
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-60 overflow-y-auto">
+        <div
+          className="absolute top-full left-0 right-0 mt-1.5 z-50 overflow-hidden max-h-64 overflow-y-auto"
+          style={{
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-high)",
+          }}
+        >
           {suggestions.map((suggestion, index) => (
             <button
               key={index}
               type="button"
               onClick={() => handleSuggestionClick(suggestion)}
-              className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+              className="w-full px-4 py-3 text-left transition-all duration-150 group"
+              style={{ borderBottom: "1px solid var(--color-border-subtle)" }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "rgba(249,115,22,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              }}
             >
               <div className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <MapPin
+                  className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 transition-colors"
+                  style={{ color: "var(--color-text-muted)" }}
+                />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p
+                    className="text-[14px] font-medium truncate"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
                     {suggestion.formatted}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">
-                    {[suggestion.city, suggestion.state, suggestion.country].filter(Boolean).join(", ")}
+                  <p
+                    className="text-[12px] truncate mt-0.5"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    {[suggestion.city, suggestion.state, suggestion.country]
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                 </div>
               </div>
@@ -194,8 +246,18 @@ export function LocationAutocomplete({
       )}
 
       {showSuggestions && value.length >= 2 && suggestions.length === 0 && !loading && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 p-4">
-          <p className="text-sm text-gray-500">No locations found</p>
+        <div
+          className="absolute top-full left-0 right-0 mt-1.5 px-4 py-3 z-50"
+          style={{
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-high)",
+          }}
+        >
+          <p className="text-[13px]" style={{ color: "var(--color-text-muted)" }}>
+            No locations found
+          </p>
         </div>
       )}
     </div>

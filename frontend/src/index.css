@@ -1,61 +1,222 @@
+/* Self-hosted fonts via @fontsource — no CDN dependency */
+@import "@fontsource/space-grotesk/400.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/600.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
 @import "tailwindcss";
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+/* ─── Design tokens ─────────────────────────────────────────────── */
+:root {
+  /* Fonts */
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+
+  /* Heat risk scale — temperature vocabulary */
+  --color-safe:     #0EA472;   /* 20-31°C — cool, low risk */
+  --color-caution:  #D4A000;   /* 32-35°C — warm, moderate */
+  --color-risk:     #F97316;   /* 36-39°C — hot, brand orange */
+  --color-critical: #DC2626;   /* 40°C+   — extreme heat */
+
+  /* Brand */
+  --color-accent: #F97316;
+
+  /* Semantic aliases of the heat scale */
+  --color-success: #0EA472;
+  --color-warning: #D4A000;
+  --color-error:   #DC2626;
+
+  /* Neutral stack — cool-gray only */
+  --color-base:            #F4F6FA;
+  --color-surface:         #FFFFFF;
+  --color-surface-muted:   #F9FAFB;
+  --color-border:          #E2E6EF;
+  --color-border-subtle:   #EDF0F5;
+  --color-text-primary:    #0D1117;
+  --color-text-secondary:  #5A6478;
+  --color-text-muted:      #9AA3B2;
+
+  /* Space scale — 4px base */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-7:  28px;
+  --space-8:  32px;
+  --space-9:  40px;
+  --space-10: 48px;
+
+  /* Radius scale */
+  --radius-sm:   6px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* Elevation — shadows tinted to near-black base */
+  --shadow-low:  0 1px 4px rgba(13,17,23,0.06), 0 2px 8px rgba(13,17,23,0.04);
+  --shadow-mid:  0 4px 16px rgba(13,17,23,0.10), 0 1px 4px rgba(13,17,23,0.06);
+  --shadow-high: 0 8px 32px rgba(13,17,23,0.16), 0 2px 8px rgba(13,17,23,0.08);
+
+  /* Motion */
+  --duration-enter:    150ms;
+  --duration-exit:     100ms;
+  --duration-emphasis: 300ms;
+  --ease-enter: cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-exit:  cubic-bezier(0.4, 0.0, 1, 1);
+
+  /* Z-index scale — all map/UI layers reference these */
+  --z-map:        0;
+  --z-route-line: 400;
+  --z-markers:    600;
+  --z-controls:   700;
+  --z-dock:       800;
+  --z-alerts:     900;
+  --z-modals:     1000;
 }
 
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+* { box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-base);
+  color: var(--color-text-primary);
 }
 
-/* Modern thin horizontal scrollbar for camera carousel */
-.camera-scroll::-webkit-scrollbar {
-  height: 6px;
+/* Float panel — frosted glass for map overlays only */
+.float-panel {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-mid);
 }
 
-.camera-scroll::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 999px;
-  margin: 0 16px;
+/* kept for any legacy references */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-mid);
 }
 
-.camera-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
-  transition: background 0.2s ease;
+/* Orange submit button */
+.btn-orange {
+  background: linear-gradient(135deg, var(--color-accent) 0%, #EA6A00 100%);
+  color: white;
+  box-shadow: 0 2px 12px rgba(249,115,22,0.30);
+  transition: all var(--duration-enter) var(--ease-enter);
+}
+.btn-orange:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FB923C 0%, var(--color-accent) 100%);
+  box-shadow: 0 4px 20px rgba(249,115,22,0.40);
+  transform: translateY(-1px);
+}
+.btn-orange:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+.btn-orange:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
-.camera-scroll::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+/* Custom range slider */
+.heat-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(to right, var(--color-safe), var(--color-risk));
+  width: 100%;
+}
+.heat-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 3px solid var(--color-surface);
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.3), 0 2px 8px rgba(0,0,0,0.15);
+  cursor: pointer;
+}
+.heat-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 3px solid var(--color-surface);
+  box-shadow: 0 0 0 2px rgba(249,115,22,0.3);
+  cursor: pointer;
+}
+.heat-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(to right, var(--color-safe), var(--color-risk));
 }
 
-.camera-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #d1d5db #f3f4f6;
+/* Scrollbars */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+.camera-scroll::-webkit-scrollbar { height: 4px; }
+.camera-scroll::-webkit-scrollbar-track { background: var(--color-border-subtle); border-radius: var(--radius-full); margin: 0 16px; }
+.camera-scroll::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+.camera-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+.camera-scroll { scrollbar-width: thin; scrollbar-color: var(--color-border) var(--color-border-subtle); }
+
+.dock-scroll-y::-webkit-scrollbar { width: 4px; }
+.dock-scroll-y::-webkit-scrollbar-track { background: var(--color-border-subtle); border-radius: var(--radius-full); margin: 4px 0; }
+.dock-scroll-y::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+.dock-scroll-y::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+.dock-scroll-y { scrollbar-width: thin; scrollbar-color: var(--color-border) var(--color-border-subtle); }
+
+/* Critical heat zone pulse for map markers */
+@keyframes critPulse {
+  0%   { transform: scale(1); opacity: 0.4; }
+  70%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
 
-/* Modern thin vertical scrollbar for stop lists */
-.dock-scroll-y::-webkit-scrollbar {
-  width: 6px;
+/* Stop pulse ring for map markers */
+@keyframes stop-pulse {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
 }
-
-.dock-scroll-y::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 999px;
-  margin: 4px 0;
+.stop-pulse-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--color-accent);
+  animation: stop-pulse 1.5s ease-out infinite;
 }
-
-.dock-scroll-y::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 999px;
+.stop-pin-label {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  background: var(--color-text-primary);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
+.custom-marker { background: transparent !important; border: none !important; }
 
-.dock-scroll-y::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
+/* noise-bg — kept for any legacy usage */
+.noise-bg::before { content: none; }
 
-.dock-scroll-y {
-  scrollbar-width: thin;
-  scrollbar-color: #d1d5db #f3f4f6;
+/* Reduced motion — disable all decorative animations */
+@media (prefers-reduced-motion: reduce) {
+  .stop-pulse-ring { animation: none; }
+  .heat-slider { transition: none; }
 }

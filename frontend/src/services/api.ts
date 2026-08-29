@@ -43,9 +43,15 @@ export interface AnalyzeRequest {
 export interface AnalyzeHeatPoint {
   lat: number;
   lon: number;
+  name?: string | null;
   temperature: number;
   humidity: number;
   heat_index: number;
+  uv_index?: number | null;
+  aqi?: number | null;
+  precipitation_mm?: number | null;
+  precipitation_probability?: number | null;
+  wind_speed_ms?: number | null;
   risk_level: string;
   eta: string;
   distance_from_origin_m?: number | null;
@@ -81,8 +87,8 @@ export interface AnalyzeEvaluation {
   risk: {
     score: number;
     level: string;
-    critical_segments: unknown[];
-    metrics: unknown;
+    critical_segments: Array<{ segment_id: number; risk_score: number; risk_level: string }>;
+    metrics: { max_temperature?: number; max_humidity?: number; max_heat_index?: number; max_aqi?: number } | null;
   } | null;
   heat_data: AnalyzeHeatPoint[];
   errors: unknown[];
@@ -97,6 +103,7 @@ export interface AnalyzeSegment {
 
 export interface AnalyzeRoute {
   id: string;
+  name?: string | null;
   distance_km: number;
   duration_min: number;
   geometry?: {
@@ -107,6 +114,26 @@ export interface AnalyzeRoute {
   pois: AnalyzePoi[];
   segments?: AnalyzeSegment[];
   cameras: AnalyzeCamera[];
+}
+
+export interface CriticalAlert {
+  risk_level: string;
+  risk_score: number;
+  distance_km: number;
+  temperature: number;
+  temp_above_avg: number;
+  eta_time: string;
+  message: string;
+}
+
+export interface CoolingStop {
+  type: string;
+  name: string;
+  lat: number | null;
+  lon: number | null;
+  distance_km: number;
+  eta_time: string;
+  message: string;
 }
 
 export interface AnalyzeResponse {
@@ -129,6 +156,15 @@ export interface AnalyzeResponse {
   }>;
   routes: AnalyzeRoute[];
   alternatives: unknown[];
+  recommendation: {
+    headline: string;
+    decision: string;
+    reason: string;
+    key_factors: string[];
+    safety_tip: string;
+    alerts: CriticalAlert[];
+    cooling_stops: CoolingStop[];
+  } | null;
 }
 
 const api = axios.create({

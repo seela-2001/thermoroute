@@ -23,77 +23,70 @@ export function Privacy() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Information We Collect</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              ThermoDispatch collects information you provide directly to us, including your name, email address, and account credentials. We also collect route information you save, travel preferences, and usage data to improve our service.
+              ThermoDispatch does not require you to create an account or log in. We collect only the information necessary to process your route requests: origin and destination coordinates, departure preferences, and trip parameters. No personal identifiers are required to use the service.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">2. How We Use Your Information</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We use your information to provide, maintain, and improve our services. This includes processing route requests, sending relevant weather and road condition alerts, and analyzing usage patterns to enhance user experience.
+              Route and location data you submit is used solely to generate heat analysis, route scoring, and departure recommendations. We do not use this data for advertising, profiling, or any purpose unrelated to providing the service you requested.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">3. Data Sharing</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We do not sell your personal information. We may share data with third-party service providers who assist in operating our service, such as weather data providers and mapping services. These partners are bound by confidentiality agreements.
+              We do not sell your data. Route coordinates are forwarded to third-party weather and routing APIs (such as Open-Meteo and OSRM) solely to fulfill your request. These services operate under their own privacy policies. No personally identifiable information is shared.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">4. Location Information</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              When you use ThermoDispatch, we process location data to provide route-specific weather and road condition information. Location data is used solely for this purpose and is not stored permanently unless you save a route to your account.
+              When you plan a route, we process the origin and destination coordinates you enter to fetch weather conditions along the path. This data is processed in real time and is not stored permanently on our servers after your session ends.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Cookies and Tracking</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Cookies and Local Storage</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We use cookies and similar technologies to enhance your experience, remember your preferences, and analyze site traffic. You can control cookie settings through your browser preferences.
+              ThermoDispatch stores recent trip history in your browser's local storage to make repeat planning faster. This data never leaves your device and can be cleared at any time through your browser settings.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-3">6. Data Security</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              We implement appropriate security measures to protect your personal information from unauthorized access, alteration, or destruction. However, no method of transmission over the internet is 100% secure.
+              All data transmitted between your browser and our servers is encrypted in transit. Because we do not store personal accounts or credentials, the risk of a data breach affecting your personal information is minimal.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">7. Your Rights</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">7. Third-Party Services</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              You have the right to access, correct, or delete your personal information. You may also opt out of certain data collection practices. To exercise these rights, please contact us at privacy@thermodispatch.com
+              ThermoDispatch integrates with third-party routing and weather APIs to power its analysis. These services have their own privacy policies. We are not responsible for how third parties handle any data passed to them as part of a route request.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">8. Third-Party Services</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">8. Children's Privacy</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              Our service may contain links to third-party websites or integrate with third-party services. These third parties have their own privacy policies, and we are not responsible for their practices.
+              ThermoDispatch is not directed at children under 13. We do not knowingly collect any information from children under 13.
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. Children's Privacy</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. Changes to This Policy</h2>
             <p className="text-gray-600 leading-relaxed mb-4">
-              ThermoDispatch is not intended for children under 13. We do not knowingly collect personal information from children under 13. If we become aware that we have collected such information, we will take steps to delete it.
-            </p>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Changes to This Policy</h2>
-            <p className="text-gray-600 leading-relaxed mb-4">
-              We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page. Your continued use of the service after such modifications constitutes your acceptance of the new policy.
+              We may update this privacy policy from time to time. Changes will be posted on this page with an updated date. Continued use of the service after changes are posted constitutes acceptance of the updated policy.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">11. Contact Information</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Contact</h2>
             <p className="text-gray-600 leading-relaxed">
-              If you have any questions about this privacy policy or our data practices, please contact us at privacy@thermodispatch.com
+              Questions about this policy? Contact us at <a href="mailto:privacy@thermodispatch.com" className="text-orange-500 hover:underline">privacy@thermodispatch.com</a>.
             </p>
           </section>
         </div>

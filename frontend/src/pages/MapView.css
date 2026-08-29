@@ -56,10 +56,49 @@
   border-top-color: #111827;
 }
 
+/* Heat emoji tooltip */
+.heat-emoji-tooltip {
+  background: #1a1a2e !important;
+  border: none !important;
+  border-radius: 10px !important;
+  padding: 0 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+.heat-emoji-tooltip::before {
+  border-top-color: #1a1a2e !important;
+}
+.heat-tip-inner {
+  padding: 8px 12px;
+  font-family: sans-serif;
+  font-size: 13px;
+  color: #f0f0f0;
+  line-height: 1.4;
+  min-width: 160px;
+}
+.heat-tip-inner strong {
+  display: block;
+  font-size: 13px;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+.heat-tip-temp {
+  display: inline-block;
+  font-size: 12px;
+  color: #fbbf24;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.heat-tip-desc {
+  font-size: 11px;
+  color: #a0a0b8;
+  margin-top: 3px;
+}
+
 /* Heat marker styles */
 .heat-marker-icon {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
+  overflow: visible !important;
   pointer-events: none;
 }
 

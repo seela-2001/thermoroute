@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from ai.fortyguard_service import FortyGuardService
+from .open_meteo_service import OpenMeteoService
 
 
 class HeatDataService:
@@ -10,6 +11,7 @@ class HeatDataService:
         self.fortyguard = FortyGuardService(
             load_from_parent_env=False
         )
+        self._open_meteo = OpenMeteoService()
 
     def get_route_heat(
         self,
@@ -34,6 +36,23 @@ class HeatDataService:
                 )
                 return index, self._success_result(point, heat_data)
             except Exception as exc:
+                try:
+                    if start_date and start_time:
+                        rounded_eta = datetime.strptime(
+                            f"{start_date} {start_time}", "%Y-%m-%d %H:%M"
+                        ).replace(tzinfo=timezone.utc)
+                    else:
+                        rounded_eta = datetime.now(timezone.utc).replace(
+                            minute=0, second=0, microsecond=0
+                        )
+                    om_result = self._open_meteo.get_point_result(
+                        point["lat"], point["lon"], rounded_eta
+                    )
+                    if om_result is not None:
+                        om_result["name"] = point.get("name")
+                        return index, om_result
+                except Exception:
+                    pass
                 return index, self._error_result(point, exc)
 
         workers = min(self.MAX_WORKERS, len(route_geometry))
@@ -99,6 +118,25 @@ class HeatDataService:
                     "cumulative_duration_seconds": point.get("cumulative_duration_seconds"),
                 }
             except Exception as exc:
+                try:
+                    om_result = self._open_meteo.get_point_result(
+                        point["lat"], point["lon"], rounded_eta
+                    )
+                    if om_result is not None:
+                        payload = {
+                            **om_result,
+                            "name": point.get("name"),
+                            "distance_from_origin_m": point.get("distance_from_origin_m"),
+                            "cumulative_duration_seconds": point.get("cumulative_duration_seconds"),
+                        }
+                        if heat_cache is not None:
+                            heat_cache[cache_key] = {
+                                k: v for k, v in payload.items()
+                                if k not in ("distance_from_origin_m", "cumulative_duration_seconds")
+                            }
+                        return index, {**payload, "eta": eta.isoformat()}
+                except Exception:
+                    pass
                 return index, {
                     **self._error_result(point, exc),
                     "eta": eta.isoformat(),
@@ -124,6 +162,7 @@ class HeatDataService:
         return {
             "lat": point["lat"],
             "lon": point["lon"],
+            "name": point.get("name"),
             "temperature": heat_data.temperature,
             "humidity": heat_data.humidity,
             "heat_index": heat_data.heat_index,
@@ -133,6 +172,8 @@ class HeatDataService:
             "timestamp": heat_data.timestamp,
             "source": heat_data.source,
             "reason": heat_data.reason,
+            "precipitation_mm": heat_data.precipitation_mm,
+            "wind_speed_ms": heat_data.wind_speed_ms,
         }
 
     @staticmethod
@@ -140,6 +181,7 @@ class HeatDataService:
         return {
             "lat": point["lat"],
             "lon": point["lon"],
+            "name": point.get("name"),
             "error": str(exc),
             "source": "error",
         }
