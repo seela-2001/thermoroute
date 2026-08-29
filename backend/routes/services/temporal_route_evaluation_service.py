@@ -169,6 +169,7 @@ class TemporalRouteEvaluationService:
                 route,
                 spacing_meters=self.DEFAULT_SPACING_METERS,
             )
+            samples = self._annotate_sample_names(samples, route.get("legs", []))
 
             # POIs for EVERY route segment (same points used for heat)
             try:
@@ -316,20 +317,84 @@ class TemporalRouteEvaluationService:
 
         return heat_result, tomtom_total
 
+    @staticmethod
+    def _annotate_sample_names(samples, legs):
+        """Assign each sample the name of the nearest OSRM step (ref preferred)."""
+        step_names = []
+        for leg in legs:
+            for step in leg.get("steps", []):
+                loc = (step.get("maneuver") or {}).get("location")
+                if not loc or len(loc) < 2:
+                    continue
+                ref = (step.get("ref") or "").strip()
+                name = (step.get("name") or "").strip()
+                display = ref if ref else (name if name.lower() not in ("", "unnamed road") else None)
+                if display:
+                    step_names.append((float(loc[1]), float(loc[0]), display))
+
+        if not step_names:
+            return samples
+
+        result = []
+        for sample in samples:
+            s_lat, s_lon = sample["lat"], sample["lon"]
+            best_name = None
+            best_dist = float("inf")
+            for st_lat, st_lon, sname in step_names:
+                d = (s_lat - st_lat) ** 2 + (s_lon - st_lon) ** 2
+                if d < best_dist:
+                    best_dist = d
+                    best_name = sname
+            result.append({**sample, "name": best_name})
+        return result
+
     def _subsample_for_heat(self, samples):
-        """Cap FortyGuard queries per (route, departure) by evenly
-        subsampling the route's samples (first and last always kept)."""
+        """Cap FortyGuard queries per (route, departure) by picking
+        points evenly distributed along travel time (not array index),
+        so city-street waypoints near the origin don't crowd all slots."""
         cap = self.max_heat_points_per_route
 
         if cap <= 0 or len(samples) <= cap:
             return samples
 
-        indices = [
-            round(i * (len(samples) - 1) / (cap - 1))
-            for i in range(cap)
+        if cap == 1:
+            return [samples[0]]
+
+        total_duration = float(
+            samples[-1].get("cumulative_duration_seconds", 0) or 0
+        )
+
+        # Fall back to index-based when duration data is absent.
+        if total_duration <= 0:
+            indices = [
+                round(i * (len(samples) - 1) / (cap - 1))
+                for i in range(cap)
+            ]
+            return [samples[index] for index in dict.fromkeys(indices)]
+
+        # Build target times evenly spaced from 0 → total_duration.
+        targets = [
+            i * total_duration / (cap - 1) for i in range(cap)
         ]
 
-        return [samples[index] for index in dict.fromkeys(indices)]
+        chosen = []
+        chosen_indices: set[int] = set()
+        for target_t in targets:
+            best_idx = 0
+            best_gap = float("inf")
+            for idx, s in enumerate(samples):
+                gap = abs(
+                    float(s.get("cumulative_duration_seconds", 0) or 0)
+                    - target_t
+                )
+                if gap < best_gap:
+                    best_gap = gap
+                    best_idx = idx
+            if best_idx not in chosen_indices:
+                chosen.append(samples[best_idx])
+                chosen_indices.add(best_idx)
+
+        return chosen
 
     def _rescale_durations(
         self,
@@ -505,6 +570,10 @@ class TemporalRouteEvaluationService:
 
     @staticmethod
     def _apply_time_scores(routes):
+        """Score each route's time penalty as % overhead vs the fastest route,
+        capped at 100.  A route 5 min slower on a 4-hour trip = ~2 pts, not 100.
+        This keeps time and weather scores on a calibrated scale so a tiny time
+        gap doesn't override a meaningful heat difference."""
         valid = [
             route
             for route in routes
@@ -514,22 +583,17 @@ class TemporalRouteEvaluationService:
         if not valid:
             return
 
-        durations = [route["duration_min"] for route in valid]
-        minimum = min(durations)
-        maximum = max(durations)
-        spread = maximum - minimum
+        minimum = min(route["duration_min"] for route in valid)
 
         for route in routes:
             duration = route.get("duration_min")
             if duration is None:
                 route["time_score"] = None
-            elif spread == 0:
+            elif minimum <= 0:
                 route["time_score"] = 0.0
             else:
-                route["time_score"] = round(
-                    ((duration - minimum) / spread) * 100,
-                    2,
-                )
+                overhead_pct = ((duration - minimum) / minimum) * 100
+                route["time_score"] = round(min(overhead_pct, 100.0), 2)
 
     @staticmethod
     def _recommended_score(departure_result):

@@ -50,8 +50,10 @@ class HeatData:
     risk_level: str
     location: str
     timestamp: str
-    source: str = "fortyguard"       # "fortyguard" or "mock"
-    reason: Optional[str] = None     # populated when source == "mock"
+    source: str = "fortyguard"           # "fortyguard" or "mock"
+    reason: Optional[str] = None         # populated when source == "mock"
+    precipitation_mm: Optional[float] = None
+    wind_speed_ms: Optional[float] = None
 
 
 class FortyGuardService:
@@ -203,6 +205,29 @@ class FortyGuardService:
             result = submit_data.get("result") or submit_data.get("data", {}).get("result")
             if result:
                 heat_data = self._parse_heatmap_result(result, lat, lon, start_date, start_time)
+                env_result = self._fetch_env_params(lat, lon, start_date, start_time)
+                heat_data = self._merge_env_params(heat_data, env_result)
+                if heat_data.wind_speed_ms is None or heat_data.precipitation_mm is None or heat_data.uv_index is None:
+                    _target_dt = None
+                    if start_date and start_time:
+                        try:
+                            from datetime import datetime as _dt, timezone as _tz
+                            _target_dt = _dt.strptime(
+                                f"{start_date} {start_time}", "%Y-%m-%d %H:%M"
+                            ).replace(tzinfo=_tz.utc)
+                        except Exception:
+                            pass
+                    wind_ms, precip_mm, uv_val = self._fetch_open_meteo_extras(lat, lon, _target_dt)
+                    from dataclasses import replace as dc_replace
+                    updates = {}
+                    if wind_ms is not None and heat_data.wind_speed_ms is None:
+                        updates["wind_speed_ms"] = wind_ms
+                    if precip_mm is not None and heat_data.precipitation_mm is None:
+                        updates["precipitation_mm"] = precip_mm
+                    if uv_val is not None and heat_data.uv_index is None:
+                        updates["uv_index"] = uv_val
+                    if updates:
+                        heat_data = dc_replace(heat_data, **updates)
                 if cache_key:
                     self._cache[cache_key] = heat_data
                 return heat_data
@@ -225,6 +250,29 @@ class FortyGuardService:
                 if status == "completed":
                     result = status_data.get("data", {}).get("result", {})
                     heat_data = self._parse_heatmap_result(result, lat, lon, start_date, start_time)
+                    env_result = self._fetch_env_params(lat, lon, start_date, start_time)
+                    heat_data = self._merge_env_params(heat_data, env_result)
+                    if heat_data.wind_speed_ms is None or heat_data.precipitation_mm is None or heat_data.uv_index is None:
+                        _target_dt = None
+                        if start_date and start_time:
+                            try:
+                                from datetime import datetime as _dt, timezone as _tz
+                                _target_dt = _dt.strptime(
+                                    f"{start_date} {start_time}", "%Y-%m-%d %H:%M"
+                                ).replace(tzinfo=_tz.utc)
+                            except Exception:
+                                pass
+                        wind_ms, precip_mm, uv_val = self._fetch_open_meteo_extras(lat, lon, _target_dt)
+                        from dataclasses import replace as dc_replace
+                        updates = {}
+                        if wind_ms is not None and heat_data.wind_speed_ms is None:
+                            updates["wind_speed_ms"] = wind_ms
+                        if precip_mm is not None and heat_data.precipitation_mm is None:
+                            updates["precipitation_mm"] = precip_mm
+                        if uv_val is not None and heat_data.uv_index is None:
+                            updates["uv_index"] = uv_val
+                        if updates:
+                            heat_data = dc_replace(heat_data, **updates)
                     if cache_key:
                         self._cache[cache_key] = heat_data
                     return heat_data
@@ -268,6 +316,161 @@ class FortyGuardService:
             timestamp=f"{start_date}T{start_time}",
             source="fortyguard",
         )
+
+    def _fetch_env_params(
+        self,
+        lat: float,
+        lon: float,
+        start_date: str,
+        start_time: str,
+    ) -> Optional[dict]:
+        """Fetch environmental parameters (precipitation, humidity, AQI) from
+        FortyGuard /env_params. Returns the result dict or None on any error —
+        this call is optional and must never break the primary heatmap path."""
+        if os.getenv("FORTYGUARD_ENV_PARAMS_DISABLED"):
+            return None
+        try:
+            payload = {
+                "location": {"lat": lat, "lon": lon},
+                "temperature": 30.0,
+                "date_time": {
+                    "start_date": start_date,
+                    "start_time": start_time,
+                    "filter_type": 1,
+                },
+            }
+            headers = {"api-key": self.api_key, "Content-Type": "application/json"}
+            response = requests.post(
+                f"{self.base_url}/env_params",
+                json=payload,
+                headers=headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            result = data.get("result") or data.get("data", {}).get("result")
+            if result:
+                return result
+
+            activity_id = data.get("activity_id") or data.get("data", {}).get("activity_id")
+            if not activity_id:
+                return None
+
+            status_url = f"{self.base_url}/status/{activity_id}"
+            for _ in range(30):
+                time.sleep(2)
+                sr = requests.get(status_url, headers=headers, timeout=self.timeout)
+                sr.raise_for_status()
+                sd = sr.json()
+                status = sd.get("data", {}).get("status", "").lower()
+                if status == "completed":
+                    return sd.get("data", {}).get("result")
+                if status in ["failed", "error"]:
+                    return None
+            return None
+        except Exception:
+            return None
+
+    def _merge_env_params(self, heat_data: "HeatData", env_result: Optional[dict]) -> "HeatData":
+        """Merge env_params result into HeatData, filling in precipitation and
+        improving humidity/AQI only when the heatmap did not provide them."""
+        if env_result is None:
+            return heat_data
+        try:
+            from dataclasses import replace as dc_replace
+            locations = env_result.get("locations") or []
+            params = locations[0].get("parameters", {}) if locations else {}
+
+            updates: dict = {}
+
+            precip = params.get("precipitation_mm")
+            if precip is not None:
+                try:
+                    updates["precipitation_mm"] = float(precip)
+                except (ValueError, TypeError):
+                    pass
+
+            if heat_data.humidity is None:
+                rh = params.get("relative_humidity_percent")
+                if rh is not None:
+                    try:
+                        updates["humidity"] = float(rh)
+                    except (ValueError, TypeError):
+                        pass
+
+            if heat_data.aqi is None:
+                aqi_val = params.get("air_quality:idx")
+                if aqi_val is not None:
+                    try:
+                        updates["aqi"] = float(aqi_val)
+                    except (ValueError, TypeError):
+                        pass
+
+            if not updates:
+                return heat_data
+            return dc_replace(heat_data, **updates)
+        except Exception:
+            return heat_data
+
+    def _fetch_open_meteo_extras(
+        self, lat: float, lon: float, target_dt=None
+    ) -> tuple[Optional[float], Optional[float], Optional[float]]:
+        """Fetch wind speed (m/s), precipitation (mm), and UV index from Open-Meteo.
+        Uses hourly forecast at target_dt when provided, else current conditions."""
+        try:
+            url = "https://api.open-meteo.com/v1/forecast"
+            if target_dt is not None:
+                date_str = target_dt.strftime("%Y-%m-%d")
+                params = {
+                    "latitude": lat, "longitude": lon,
+                    "hourly": "wind_speed_10m,precipitation,uv_index",
+                    "start_date": date_str, "end_date": date_str,
+                    "timezone": "UTC",
+                }
+                resp = requests.get(url, params=params, timeout=8)
+                if resp.ok:
+                    hourly = resp.json().get("hourly", {})
+                    times = hourly.get("time", [])
+                    target_key = target_dt.strftime("%Y-%m-%dT%H:00")
+                    winds = hourly.get("wind_speed_10m", [])
+                    precips = hourly.get("precipitation", [])
+                    uvs = hourly.get("uv_index", [])
+                    for i, t in enumerate(times):
+                        if t == target_key:
+                            w = winds[i] if i < len(winds) else None
+                            p = precips[i] if i < len(precips) else None
+                            u = uvs[i] if i < len(uvs) else None
+                            return (
+                                float(w) / 3.6 if w is not None else None,
+                                float(p) if p is not None else None,
+                                float(u) if u is not None else None,
+                            )
+            # fallback: current conditions
+            params = {
+                "latitude": lat, "longitude": lon,
+                "current": "wind_speed_10m,precipitation,uv_index",
+                "forecast_days": 1, "timezone": "auto",
+            }
+            resp = requests.get(url, params=params, timeout=8)
+            if resp.ok:
+                cur = resp.json().get("current", {})
+                w = cur.get("wind_speed_10m")
+                p = cur.get("precipitation")
+                u = cur.get("uv_index")
+                return (
+                    float(w) / 3.6 if w is not None else None,
+                    float(p) if p is not None else None,
+                    float(u) if u is not None else None,
+                )
+        except Exception:
+            pass
+        return None, None, None
+
+    # kept for backward compat — delegates to the combined method
+    def _fetch_wind_speed(self, lat: float, lon: float) -> Optional[float]:
+        wind_ms, _, _ = self._fetch_open_meteo_extras(lat, lon)
+        return wind_ms
 
     def _extract_metric(self, result: dict, keys: list) -> Optional[float]:
         """Extract a metric (humidity/uv/aqi) from map features or

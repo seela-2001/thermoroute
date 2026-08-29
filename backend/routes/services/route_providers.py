@@ -52,10 +52,12 @@ class RouteProvider:
 
             seen.add(key)
             duration_seconds = float(route.get("duration", 0))
+            legs = route.get("legs", [])
 
             routes.append(
                 {
                     "id": f"route_{len(routes) + 1}",
+                    "name": self._extract_route_name(legs),
                     "distance_km": round(
                         float(route.get("distance", 0)) / 1000,
                         2,
@@ -66,10 +68,8 @@ class RouteProvider:
                     ),
                     "duration_seconds": duration_seconds,
                     "geometry": geometry,
-                    "legs": route.get("legs", []),
-                    "waypoints": self._extract_waypoints(
-                        route.get("legs", []),
-                    ),
+                    "legs": legs,
+                    "waypoints": self._extract_waypoints(legs),
                 }
             )
 
@@ -79,35 +79,62 @@ class RouteProvider:
         return routes
 
     @staticmethod
+    def _extract_route_name(legs):
+        """Extract the primary highway reference from OSRM step refs."""
+        refs = []
+        names = []
+        for leg in legs:
+            for step in leg.get("steps", []):
+                ref = (step.get("ref") or "").strip()
+                name = (step.get("name") or "").strip()
+                if ref and ref not in refs:
+                    refs.append(ref)
+                elif name and name not in names and name.lower() not in ("", "unnamed road"):
+                    names.append(name)
+        if refs:
+            return refs[0]
+        if names:
+            return names[0]
+        return None
+
+    @staticmethod
     def _extract_waypoints(legs):
-        """Collect step maneuver locations (lon, lat) from OSRM
-        legs, deduplicated and in route order."""
+        """Return only the user-specified intermediate stop locations
+        (leg boundaries), not every step maneuver.
+
+        Each leg in OSRM corresponds to one segment between the user's
+        waypoints (origin → stop1 → stop2 → destination). The first
+        step of leg[i+1] is the intermediate stop between leg[i] and
+        leg[i+1]. For a direct A→B route with no stops, there is only
+        one leg, so this returns an empty list (origin and destination
+        are already covered by the even-spacing samples)."""
         waypoints = []
         seen = set()
 
-        for leg in legs:
-            for step in leg.get("steps", []):
-                maneuver = step.get("maneuver") or {}
-                location = maneuver.get("location")
-
-                if not location or len(location) < 2:
-                    continue
-
-                key = (
-                    round(float(location[0]), 5),
-                    round(float(location[1]), 5),
-                )
-
-                if key in seen:
-                    continue
-
-                seen.add(key)
-                waypoints.append(
-                    {
-                        "lon": float(location[0]),
-                        "lat": float(location[1]),
-                    }
-                )
+        # Leg boundaries: for N legs, the stops are between legs 0→1,
+        # 1→2, ... i.e. the start of legs 1, 2, … (not leg 0 = origin,
+        # not the end of the last leg = destination).
+        for leg in legs[1:]:
+            steps = leg.get("steps") or []
+            if not steps:
+                continue
+            maneuver = (steps[0].get("maneuver") or {})
+            location = maneuver.get("location")
+            if not location or len(location) < 2:
+                continue
+            key = (
+                round(float(location[0]), 5),
+                round(float(location[1]), 5),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            waypoints.append(
+                {
+                    "lon": float(location[0]),
+                    "lat": float(location[1]),
+                }
+            )
 
         return waypoints
 

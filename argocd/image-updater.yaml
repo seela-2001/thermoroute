@@ -1,0 +1,34 @@
+apiVersion: argocd-image-updater.argoproj.io.v1alpha1 
+kind: ImageUpdater
+metadata:
+  name: thermoroute-image-updater
+  namespace: argocd 
+spec:
+  writeBackConfig: 
+    method: git:secret:github-image-updater
+    gitConfig: 
+      repository: https://github.com/seela-2001/thermoroute
+      branch: main
+      writeBackTarget: helmvalues:helm/thermoroute/values.yaml
+
+  applicationRefs:
+    - namePattern: thermoroute-application
+      images:
+        - alias: backend
+          imageName: sohila12/thermoroute-backend:v1.0.44
+          commonUpdateSettings:
+            updateStrategy: semver
+            manifestTargets:
+              helm: 
+                nama: backend.image.repository
+                tag: backend.image.tag
+
+        - alias: frontend
+          imageName: sohila12/thermoroute-frontend:v
+          commonUpdateSettings:
+            UpdateStrategy: semver
+            manifestTargets:
+              helm: 
+                name: frontend.image.repository
+                tag: frontend.image.tag
+
