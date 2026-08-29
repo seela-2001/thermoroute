@@ -25,6 +25,9 @@ function proxyCameraImage(imageUrl: string | null | undefined): string | null {
   return `${API_BASE}/api/routes/camera-image/?url=${encodeURIComponent(imageUrl)}`;
 }
 
+
+// Types
+
 type ActiveSection = null | "departure" | "cameras" | "stops";
 
 export interface DepartureHourInfo {
