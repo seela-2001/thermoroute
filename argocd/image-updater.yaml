@@ -15,7 +15,7 @@ spec:
     - namePattern: thermoroute-application
       images:
         - alias: backend
-          imageName: sohila12/thermoroute-backend:v1.0.0
+          imageName: sohila12/thermoroute-backend
           commonUpdateSettings:
             updateStrategy: semver
           manifestTargets:
@@ -24,7 +24,7 @@ spec:
               tag: backend.image.tag
 
         - alias: frontend
-          imageName: sohila12/thermoroute-frontend:v1.0.0
+          imageName: sohila12/thermoroute-frontend
           commonUpdateSettings:
             updateStrategy: semver
           manifestTargets:
