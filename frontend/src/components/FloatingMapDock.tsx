@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Clock, Video, Navigation, X, Loader2 } from "lucide-react";
 
+
+
 // Types
 type ActiveSection = null | "departure" | "cameras" | "stops";
 
