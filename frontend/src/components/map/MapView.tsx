@@ -141,10 +141,10 @@ function heatEmoji(temp: number): string {
 function riskInfo(temp: number | null, risk?: string): { label: string; tip: string } {
   const lvl = (risk ?? "").toUpperCase();
   const byRisk: Record<string, { label: string; tip: string }> = {
-    EXTREME:   { label: "Extreme Heat",   tip: "Dangerous — avoid outdoor exposure" },
-    VERY_HIGH: { label: "Very High Heat", tip: "High risk — stay hydrated, limit time outside" },
-    HIGH:      { label: "High Heat",      tip: "Elevated risk — take regular breaks" },
-    MODERATE:  { label: "Moderate Heat",  tip: "Use caution — drink water regularly" },
+    EXTREME:   { label: "Extreme Heat",   tip: "Dangerous. Avoid outdoor exposure" },
+    VERY_HIGH: { label: "Very High Heat", tip: "High risk. Stay hydrated, limit time outside" },
+    HIGH:      { label: "High Heat",      tip: "Elevated risk. Take regular breaks" },
+    MODERATE:  { label: "Moderate Heat",  tip: "Use caution. Drink water regularly" },
     LOW:       { label: "Low Heat",       tip: "Comfortable driving conditions" },
   };
   if (byRisk[lvl]) return byRisk[lvl];
@@ -325,6 +325,8 @@ export function MapView({
   const [activeTab, setActiveTab] = useState<"results" | "detail">("results");
   const [unitF, setUnitF] = useState(false);
   const [selectedHourIdx, setSelectedHourIdx] = useState<number | null>(null);
+  const [planApplied, setPlanApplied] = useState(false);
+  const [poiFilter, setPoiFilter] = useState<string>("all");
 
   const mapRef = useRef<LeafletMap | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -336,6 +338,9 @@ export function MapView({
   const heatLegendRef = useRef<LeafletControl | null>(null);
   const heatEmojiMarkersRef = useRef<LeafletMarker[]>([]);
   const deptGradientRef = useRef<LeafletLayerGroup | null>(null);
+  const poiMarkerRef = useRef<LeafletMarker | null>(null);
+  const mapCardRef = useRef<HTMLDivElement | null>(null);
+  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
 
   const selectedRouteData = routes.find((r) => r.id === selectedRouteId) ?? routes[0];
 
@@ -645,6 +650,29 @@ export function MapView({
     }
   };
 
+  const handlePoiClick = (poi: AnalyzePoi, emoji: string, poiKey: string) => {
+    const map = mapRef.current;
+    if (!map || poi.lat == null || poi.lon == null) return;
+    if (poiMarkerRef.current) {
+      map.removeLayer(poiMarkerRef.current);
+      poiMarkerRef.current = null;
+    }
+    if (selectedPoiId === poiKey) {
+      setSelectedPoiId(null);
+      return;
+    }
+    setSelectedPoiId(poiKey);
+    mapCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const iconHtml = `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <div style="background:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:2px solid #F97316;box-shadow:0 2px 8px rgba(249,115,22,0.35);font-size:17px;">${emoji}</div>
+      <div style="background:#1C1917;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:99px;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;">${poi.name || emoji}</div>
+    </div>`;
+    poiMarkerRef.current = L.marker([poi.lat, poi.lon], {
+      icon: L.divIcon({ html: iconHtml, className: "custom-marker", iconSize: [30, 48], iconAnchor: [15, 10] }),
+    }).addTo(map);
+    map.flyTo([poi.lat, poi.lon], 14, { duration: 1.0 });
+  };
+
   const handleToggleHeatmap = () => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -753,32 +781,98 @@ export function MapView({
   })();
 
   // ── Watch-out items ───────────────────────────────────────────
-  const watchOutItems: Array<{ title: string; body: string; bg: string; color: string }> = [];
-  if (recommendation?.alerts && recommendation.alerts.length > 0) {
-    recommendation.alerts.slice(0, 2).forEach((a, i) => {
-      watchOutItems.push({
-        title: a.message.length > 60 ? a.message.slice(0, 57) + "…" : a.message,
-        body: a.temperature > 0 ? `${a.temperature}°C · Risk score ${a.risk_score}` : a.message,
-        bg: i === 0 ? "rgba(249,115,22,0.08)" : "#FAF8F2",
-        color: i === 0 ? "#92400E" : "#44403C",
-      });
-    });
+  function alertStyle(riskLevel: string): { bg: string; color: string } {
+    const lvl = riskLevel.toLowerCase();
+    if (lvl.includes("extreme") || lvl.includes("critical") || lvl.includes("high"))
+      return { bg: "rgba(239,68,68,0.08)", color: "#991B1B" };
+    if (lvl.includes("medium") || lvl.includes("moderate"))
+      return { bg: "rgba(249,115,22,0.08)", color: "#92400E" };
+    if (lvl.includes("low"))
+      return { bg: "rgba(212,160,0,0.08)", color: "#713F12" };
+    return { bg: "#FAF8F2", color: "#44403C" };
   }
-  if (heatWarning && watchOutItems.length < 3) {
+
+  const critSegsForAlert = bestEvalForPoints?.risk?.critical_segments ?? [];
+  const riskMetrics = bestEvalForPoints?.risk?.metrics;
+  const riskLevel = bestEvalForPoints?.risk?.level ?? "";
+
+  const watchOutItems: Array<{ title: string; body: string; bg: string; color: string }> = [];
+
+  // 1. API alerts (highest priority)
+  (recommendation?.alerts ?? []).forEach((a) => {
+    watchOutItems.push({
+      title: a.message,
+      body: [
+        a.temperature > 0 && `${a.temperature}°C`,
+        a.risk_score > 0 && `Risk score ${a.risk_score}/100`,
+        a.distance_km > 0 && `${a.distance_km.toFixed(0)} km from start`,
+        a.eta_time && `ETA ${a.eta_time}`,
+      ].filter(Boolean).join(" · "),
+      ...alertStyle(a.risk_level),
+    });
+  });
+
+  // 2. Heat data notice
+  if (heatWarning) {
     watchOutItems.push({ title: "Heat data notice", body: heatWarning, bg: "rgba(212,160,0,0.08)", color: "#713F12" });
   }
-  const critSegsForAlert = bestEvalForPoints?.risk?.critical_segments ?? [];
-  if (critSegsForAlert.length > 0 && watchOutItems.length < 3) {
-    const worstCs = critSegsForAlert.reduce((a, b) => a.risk_score >= b.risk_score ? a : b);
-    watchOutItems.push({
-      title: `${critSegsForAlert.length} critical heat zone${critSegsForAlert.length > 1 ? "s" : ""} on route`,
-      body: `Worst: ${worstCs.risk_level.replace(/_/g, " ")} · risk score ${worstCs.risk_score}/100 · shown as red circles on map`,
-      bg: "rgba(239,68,68,0.08)",
-      color: "#991B1B",
-    });
-  }
+
+  // 3. Smart fallbacks from route data when no API alerts
   if (watchOutItems.length === 0) {
-    watchOutItems.push({ title: "All clear", body: "No significant heat or weather alerts for this route and departure time.", bg: "#F0FDF4", color: "#166534" });
+    // Critical segments
+    if (critSegsForAlert.length > 0) {
+      const worst = critSegsForAlert.reduce((a, b) => a.risk_score >= b.risk_score ? a : b);
+      watchOutItems.push({
+        title: `${critSegsForAlert.length} critical heat zone${critSegsForAlert.length > 1 ? "s" : ""} on this route`,
+        body: `Worst segment: ${worst.risk_level.replace(/_/g, " ")} · risk score ${worst.risk_score}/100`,
+        ...alertStyle(worst.risk_level),
+      });
+    }
+
+    // Peak temperature
+    const maxTemp = riskMetrics?.max_temperature
+      ?? (allHeatPoints.length > 0 ? Math.max(...allHeatPoints.map(p => p.temperature)) : null);
+    if (maxTemp != null && maxTemp > 32) {
+      watchOutItems.push({
+        title: `Peak temperature ${maxTemp.toFixed(0)}°C along route`,
+        body: maxTemp > 40
+          ? "Extreme heat. Plan cooling stops and off-peak departure."
+          : "High heat expected. Stay hydrated and monitor crew.",
+        ...alertStyle(maxTemp > 40 ? "high" : "medium"),
+      });
+    }
+
+    // AQI concern
+    const maxAqi = riskMetrics?.max_aqi
+      ?? (allHeatPoints.length > 0 ? Math.max(...allHeatPoints.map(p => p.aqi ?? 0)) : null);
+    if (maxAqi != null && maxAqi > 100) {
+      watchOutItems.push({
+        title: `Air quality concern: AQI ${maxAqi.toFixed(0)}`,
+        body: maxAqi > 150 ? "Unhealthy air quality. Limit crew exposure during stops." : "Moderate air quality risk along route.",
+        ...alertStyle(maxAqi > 150 ? "high" : "medium"),
+      });
+    }
+
+    // Heat index vs temperature gap
+    const maxHeatIndex = riskMetrics?.max_heat_index;
+    if (maxTemp != null && maxHeatIndex != null && maxHeatIndex - maxTemp > 5) {
+      watchOutItems.push({
+        title: `Feels like ${maxHeatIndex.toFixed(0)}°C (+${(maxHeatIndex - maxTemp).toFixed(0)}° above air temp)`,
+        body: "Humidity amplifies heat stress. Factor heat index into crew safety planning.",
+        ...alertStyle(maxHeatIndex > 42 ? "high" : "medium"),
+      });
+    }
+
+    // All clear
+    if (watchOutItems.length === 0) {
+      const lvlText = riskLevel ? riskLevel.replace(/_/g, " ") : "low";
+      watchOutItems.push({
+        title: "No significant heat alerts",
+        body: `Overall risk: ${lvlText}. Conditions look safe for this departure window.`,
+        bg: "#F0FDF4",
+        color: "#166534",
+      });
+    }
   }
 
   // ── Departure / Arrival labels ────────────────────────────────
@@ -912,7 +1006,7 @@ export function MapView({
       title: selectedRouteOption
         ? `${selectedRouteOption.label === "RECOMMENDED" ? "Recommended" : selectedRouteOption.label} at ${bestDeparture?.label ?? "--"}`
         : "Optimal plan",
-      body: `Comfort score ${comfortScoreFromRisk(bestDeparture?.risk ?? "moderate", bestDeparture?.tempValue ?? 30)} — the highest-scoring combination of route and departure hour.`,
+      body: `Comfort score ${comfortScoreFromRisk(bestDeparture?.risk ?? "moderate", bestDeparture?.tempValue ?? 30)}: the highest-scoring combination of route and departure hour.`,
     },
   ];
 
@@ -930,16 +1024,16 @@ export function MapView({
         }}
       >
         {/* Brand */}
-        <div
-          onClick={onBack}
-          style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer", flexShrink: 0 }}
+        <a
+          href="/"
+          style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0, textDecoration: "none" }}
         >
           <img
             src={thermoLogo}
             alt="ThermoDispatch"
             style={{ height: 40, width: "auto", borderRadius: 8, display: "block" }}
           />
-        </div>
+        </a>
 
         {/* Tab navigation */}
         <nav style={{ display: "flex", gap: 3, padding: 4, background: "#F0EDE8", borderRadius: 12, flexShrink: 0 }}>
@@ -1086,7 +1180,7 @@ export function MapView({
                       {`Best plan for ${new Date().toLocaleDateString('en-US', { weekday: 'long' })}`}
                     </div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
-                      <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 52, lineHeight: 1, letterSpacing: "-0.035em" }}>
+                      <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 56, lineHeight: 1, letterSpacing: "-0.035em" }}>
                         {bestDeparture?.label ?? "--"}
                       </span>
                       {selectedRouteOption && (
@@ -1101,13 +1195,13 @@ export function MapView({
                   {/* Comfort score circle */}
                   <div
                     style={{
-                      width: 108, height: 108, borderRadius: "50%",
+                      width: 116, height: 116, borderRadius: "50%",
                       border: "2px solid rgba(255,255,255,0.28)",
                       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                       flexShrink: 0,
                     }}
                   >
-                    <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 32, lineHeight: 1 }}>
+                    <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
                       {bestDeparture ? comfortScoreFromRisk(bestDeparture.risk, bestDeparture.tempValue) : "--"}
                     </span>
                     <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.72, marginTop: 4 }}>
@@ -1123,29 +1217,36 @@ export function MapView({
                       key={p.k}
                       style={{
                         display: "flex", flexDirection: "column", gap: 2,
-                        padding: "8px 14px", borderRadius: 12,
+                        padding: "10px 16px", borderRadius: 12,
                         background: "rgba(255,255,255,0.14)",
                       }}
                     >
                       <span style={{ fontSize: 10, letterSpacing: "0.07em", textTransform: "uppercase", opacity: 0.72 }}>{p.k}</span>
-                      <span style={{ fontFamily: "var(--font-heading)", fontSize: 14, fontWeight: 600 }}>{p.v}</span>
+                      <span style={{ fontFamily: "var(--font-heading)", fontSize: 15, fontWeight: 600 }}>{p.v}</span>
                     </div>
                   ))}
                   <div style={{ flex: 1 }} />
                   <button
                     onClick={() => {
                       if (recommendedRouteId) setSelectedRouteId(recommendedRouteId);
+                      const bestIdx = departureHours.findIndex(h => h.isBest);
+                      if (bestIdx >= 0) setSelectedHourIdx(bestIdx);
+                      setActiveTab("detail");
                       setTimeout(() => handleCenter(), 100);
+                      setPlanApplied(true);
+                      setTimeout(() => setPlanApplied(false), 2500);
                     }}
                     style={{
-                      alignSelf: "flex-end", padding: "11px 20px", borderRadius: 12, border: "none",
-                      background: "rgba(255,255,255,0.95)", color: "#6D28A0",
+                      alignSelf: "flex-end", padding: "13px 22px", borderRadius: 12, border: "none",
+                      background: planApplied ? "rgba(14,164,114,0.9)" : "rgba(255,255,255,0.95)",
+                      color: planApplied ? "#fff" : "#6D28A0",
                       fontFamily: "var(--font-heading)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      transition: "background 300ms, color 300ms",
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "#fff")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.95)")}
+                    onMouseEnter={e => { if (!planApplied) e.currentTarget.style.background = "#fff"; }}
+                    onMouseLeave={e => { if (!planApplied) e.currentTarget.style.background = "rgba(255,255,255,0.95)"; }}
                   >
-                    Use this plan
+                    {planApplied ? "✓ Plan applied" : "Use this plan"}
                   </button>
                 </div>
               </section>
@@ -1154,15 +1255,15 @@ export function MapView({
               <section
                 style={{
                   background: "#FEFCF8", border: "1px solid #EBE8E3", borderRadius: 24,
-                  padding: "24px 26px 20px",
+                  padding: "26px 28px 22px",
                 }}
               >
                 <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
                   <div>
-                    <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em", margin: 0, color: "#1C1917" }}>
+                    <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 22, letterSpacing: "-0.02em", margin: 0, color: "#1C1917" }}>
                       Departure timeline
                     </h2>
-                    <p style={{ margin: "5px 0 0", fontSize: 13, color: "#6B6560" }}>
+                    <p style={{ margin: "5px 0 0", fontSize: 14, color: "#6B6560" }}>
                       Comfort score for each start hour on {selectedRouteOption?.name ?? "route"}. Tap a bar to re-time the trip.
                     </p>
                   </div>
@@ -1204,7 +1305,7 @@ export function MapView({
                               <div
                                 key={idx}
                                 onClick={() => setSelectedHourIdx(isSelected ? null : idx)}
-                                title={`${h.label} — comfort ${score}, ${h.tempValue}°C`}
+                                title={`${h.label}: comfort ${score}, ${h.tempValue}°C`}
                                 style={{
                                   flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end",
                                   alignItems: "center", gap: 5, height: "100%", cursor: "pointer",
@@ -1275,7 +1376,7 @@ export function MapView({
                             {selectedDeltaC > 0
                               ? `${selectedHour!.label} is ${selectedDeltaC}°C warmer than the ${bestDeptHour?.label ?? "best"} departure`
                               : selectedDeltaC < 0
-                                ? `${selectedHour!.label} is ${Math.abs(selectedDeltaC)}°C cooler — even better than ${bestDeptHour?.label ?? "best"}`
+                                ? `${selectedHour!.label} is ${Math.abs(selectedDeltaC)}°C cooler, even better than ${bestDeptHour?.label ?? "best"}`
                                 : `${selectedHour!.label} matches the ${bestDeptHour?.label ?? "best"} departure in heat`}
                           </span>
                           <button
@@ -1309,7 +1410,7 @@ export function MapView({
                           }}
                         >
                           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#0EA472", flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, color: "#15653F" }}>{windowNote}</span>
+                          <span style={{ fontSize: 14, color: "#15653F" }}>{windowNote}</span>
                         </div>
                         {alsoGoodHours.length > 0 && (
                           <div style={{
@@ -1335,7 +1436,7 @@ export function MapView({
                                   {i < alsoGoodHours.length - 1 ? ", " : ""}
                                 </span>
                               ))}
-                              {" "}— within 2°C of best
+                              {" "}(within 2°C of best)
                             </span>
                           </div>
                         )}
@@ -1552,6 +1653,113 @@ export function MapView({
                   </div>
                 </section>
               )}
+
+              {/* 5 ── Stops & POIs */}
+              {(() => {
+                const allPois = segmentPois.length > 0 ? segmentPois : (selectedRouteData?.pois ?? []);
+                const coolingStops = recommendation?.cooling_stops ?? [];
+                if (allPois.length === 0 && coolingStops.length === 0) return null;
+
+                function poiEmoji(type: string): string {
+                  const t = (type || "").toLowerCase();
+                  if (t === "gas_station" || t.includes("fuel")) return "⛽";
+                  if (t === "hospital" || t.includes("medical") || t.includes("clinic")) return "🏥";
+                  if (t === "restaurant" || t.includes("food") || t.includes("catering")) return "🍽️";
+                  if (t === "rest_area" || t.includes("rest")) return "🅿️";
+                  if (t === "supermarket" || t.includes("market")) return "🛒";
+                  if (t.includes("water")) return "💧";
+                  if (t.includes("library")) return "📚";
+                  if (t.includes("hotel") || t.includes("lodging")) return "🏨";
+                  return "📍";
+                }
+                function poiTypeLabel(type: string): string {
+                  return (type || "").toLowerCase().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                }
+
+                const filterTypes = ["all", ...Array.from(new Set(allPois.map(p => p.type).filter(Boolean)))];
+                const filteredPois = poiFilter === "all" ? allPois : allPois.filter(p => p.type === poiFilter);
+
+                return (
+                  <section style={{ background: "#fff", border: "1px solid #EBE8E3", borderRadius: 24, padding: "18px 20px" }}>
+                    {/* Header row */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <span style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "#1C1917" }}>
+                        Stops along the way
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 10, color: "#9A948E" }}>tap to show on map</span>
+                        <span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: "rgba(249,115,22,0.08)", color: "#F97316", border: "1px solid rgba(249,115,22,0.18)" }}>
+                          {allPois.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Cooling stops — compact rows */}
+                    {coolingStops.length > 0 && (
+                      <div style={{ marginBottom: 10, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(14,164,114,0.18)" }}>
+                        {coolingStops.map((stop, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 11px", background: i % 2 === 0 ? "rgba(14,164,114,0.05)" : "#FAFFFE", borderTop: i > 0 ? "1px solid rgba(14,164,114,0.10)" : undefined }}>
+                            <span style={{ fontSize: 14, flexShrink: 0 }}>🧊</span>
+                            <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "#1C1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stop.name}</span>
+                            {stop.eta_time && <span style={{ fontSize: 10, color: "#6B6560", flexShrink: 0 }}>{stop.eta_time}</span>}
+                            {stop.distance_km > 0 && <span style={{ fontSize: 10, color: "#9A948E", flexShrink: 0 }}>{stop.distance_km.toFixed(0)} km</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Filter chips */}
+                    {filterTypes.length > 1 && (
+                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+                        {filterTypes.map(type => (
+                          <button key={type} onClick={() => setPoiFilter(type)} style={{ padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, border: "none", cursor: "pointer", transition: "all 120ms", background: poiFilter === type ? "#1C1917" : "#F0EDE8", color: poiFilter === type ? "#fff" : "#6B6560" }}>
+                            {type === "all" ? `All · ${allPois.length}` : `${poiEmoji(type)} ${poiTypeLabel(type)}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 3-column grid */}
+                    {filteredPois.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                        {filteredPois.map((poi, i) => {
+                          const emoji = poiEmoji(poi.type);
+                          const key = poi.id ?? `${poi.lat}-${poi.lon}-${i}`;
+                          const isActive = selectedPoiId === key;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => handlePoiClick(poi, emoji, String(key))}
+                              style={{
+                                display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4,
+                                padding: "9px 11px", borderRadius: 12, border: "1px solid",
+                                borderColor: isActive ? "rgba(249,115,22,0.4)" : "#EBE8E3",
+                                cursor: "pointer", textAlign: "left",
+                                background: isActive ? "rgba(249,115,22,0.06)" : "#FAF8F2",
+                                transition: "all 120ms",
+                              }}
+                              onMouseEnter={e => { if (!isActive) { e.currentTarget.style.borderColor = "#D4CCC4"; e.currentTarget.style.background = "#F5F2EC"; } }}
+                              onMouseLeave={e => { if (!isActive) { e.currentTarget.style.borderColor = "#EBE8E3"; e.currentTarget.style.background = "#FAF8F2"; } }}
+                            >
+                              <span style={{ fontSize: 18 }}>{emoji}</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? "#C2410C" : "#1C1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
+                                {poi.name || poiTypeLabel(poi.type)}
+                              </span>
+                              {poi.distance != null && (
+                                <span style={{ fontSize: 10, color: "#9A948E" }}>
+                                  {poi.distance < 1000 ? `${Math.round(poi.distance)} m` : `${(poi.distance / 1000).toFixed(1)} km`}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 12, color: "#9A948E", margin: "6px 0", textAlign: "center" }}>No stops of this type.</p>
+                    )}
+                  </section>
+                );
+              })()}
             </div>
 
             {/* ── RIGHT SIDEBAR ──────────────────────────────── */}
@@ -1559,6 +1767,7 @@ export function MapView({
 
               {/* Map card */}
               <div
+                ref={mapCardRef}
                 style={{
                   position: "relative", borderRadius: 24, overflow: "hidden",
                   border: "1px solid #EBE8E3", background: "#E8E4DC",
@@ -1589,13 +1798,13 @@ export function MapView({
                   </button>
                   <button
                     style={{ padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 500, border: "none", cursor: "default", background: "transparent", color: "#9A948E" }}
-                    title="Rain layer — coming soon"
+                    title="Rain layer, coming soon"
                   >
                     Rain
                   </button>
                   <button
                     style={{ padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 500, border: "none", cursor: "default", background: "transparent", color: "#9A948E" }}
-                    title="Wind layer — coming soon"
+                    title="Wind layer, coming soon"
                   >
                     Wind
                   </button>
@@ -1649,6 +1858,7 @@ export function MapView({
                   </button>
                 </div>
 
+
                 {/* Exposure legend (bottom-left) */}
                 <div
                   style={{
@@ -1673,7 +1883,7 @@ export function MapView({
                     style={{
                       position: "absolute", inset: 0, display: "flex", flexDirection: "column",
                       alignItems: "center", justifyContent: "center", gap: 10,
-                      background: "rgba(250,248,242,0.88)", zIndex: 600,
+                      background: "rgba(250,248,242,0.88)", zIndex: 1200,
                     }}
                   >
                     <Loader2 style={{ width: 24, height: 24, color: "#F97316" }} className="animate-spin" />
@@ -1691,7 +1901,7 @@ export function MapView({
                       style={{
                         position: "absolute", inset: 0, display: "flex", flexDirection: "column",
                         alignItems: "center", justifyContent: "center", gap: 12,
-                        background: "rgba(250,248,242,0.95)", zIndex: 600,
+                        background: "rgba(250,248,242,0.95)", zIndex: 1200,
                       }}
                     >
                       <WifiOff style={{ width: 28, height: 28, color: "#9A948E" }} />
@@ -1709,7 +1919,7 @@ export function MapView({
                     style={{
                       position: "absolute", inset: 0, display: "flex", flexDirection: "column",
                       alignItems: "center", justifyContent: "center", gap: 12,
-                      background: "rgba(250,248,242,0.95)", zIndex: 600,
+                      background: "rgba(250,248,242,0.95)", zIndex: 1200,
                     }}
                   >
                     <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 16, color: "#1C1917", margin: 0 }}>No routes found</p>
@@ -1728,8 +1938,8 @@ export function MapView({
               </div>
 
               {/* Trip Summary card */}
-              <div style={{ background: "#fff", border: "1px solid #EBE8E3", borderRadius: 24, padding: "20px 22px" }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, letterSpacing: "-0.015em", color: "#1C1917" }}>
+              <div style={{ background: "#fff", border: "1px solid #EBE8E3", borderRadius: 24, padding: "22px 24px" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 18, letterSpacing: "-0.015em", color: "#1C1917" }}>
                   Trip summary
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 0, marginTop: 14 }}>
@@ -1738,7 +1948,7 @@ export function MapView({
                       key={i}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "10px 0",
+                        padding: "11px 0",
                         borderBottom: i < tripSummaryRows.length - 1 ? "1px solid #F0EDE8" : "none",
                       }}
                     >
@@ -1764,8 +1974,8 @@ export function MapView({
               </div>
 
               {/* Watch out for card */}
-              <div style={{ background: "#fff", border: "1px solid #EBE8E3", borderRadius: 24, padding: "20px 22px" }}>
-                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 17, letterSpacing: "-0.015em", color: "#1C1917" }}>
+              <div style={{ background: "#fff", border: "1px solid #EBE8E3", borderRadius: 24, padding: "22px 24px" }}>
+                <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 18, letterSpacing: "-0.015em", color: "#1C1917" }}>
                   Watch out for
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
@@ -1775,7 +1985,7 @@ export function MapView({
                       style={{ padding: "12px 14px", borderRadius: 14, background: item.bg, color: item.color }}
                     >
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{item.title}</div>
-                      <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.85, marginTop: 3 }}>{item.body}</div>
+                      {item.body && <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.85, marginTop: 3 }}>{item.body}</div>}
                     </div>
                   ))}
                 </div>
@@ -1787,12 +1997,12 @@ export function MapView({
         <div style={{ display: activeTab === "detail" ? "block" : "none", marginTop: 8 }}>
 
             {/* Detail header */}
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20, flexWrap: "wrap", marginBottom: 28 }}>
               <div>
-                <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 34, letterSpacing: "-0.03em", margin: 0, color: "#1C1917" }}>
+                <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 38, letterSpacing: "-0.03em", margin: 0, color: "#1C1917" }}>
                   {selectedRouteData?.via || selectedRouteOption?.name || "Route"}
                 </h1>
-                <p style={{ margin: "8px 0 0", fontSize: 14, color: "#6B6560" }}>
+                <p style={{ margin: "8px 0 0", fontSize: 15, color: "#6B6560" }}>
                   Departing {departureLabel} · {selectedRouteOption?.duration ?? "--"} · {selectedRouteOption?.distance ?? "--"} · arriving {arrivalLabel}
                 </p>
               </div>
@@ -1822,8 +2032,8 @@ export function MapView({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "72px minmax(0,1.4fr) 80px 1fr 52px 72px 44px 110px",
-                  gap: 6, padding: "10px 18px",
+                  gridTemplateColumns: "92px minmax(0,1.4fr) 96px 1fr 72px 84px 60px 110px",
+                  gap: 12, padding: "14px 24px",
                   background: "#FAF8F2", borderBottom: "1px solid #EBE8E3",
                   fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#6B6560",
                 }}
@@ -1849,14 +2059,14 @@ export function MapView({
                   key={i}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "72px minmax(0,1.4fr) 80px 1fr 52px 72px 44px 110px",
-                    gap: 6, alignItems: "center", padding: "13px 18px",
+                    gridTemplateColumns: "92px minmax(0,1.4fr) 96px 1fr 72px 84px 60px 110px",
+                    gap: 12, alignItems: "center", padding: "18px 24px",
                     borderBottom: i < detailTableRows.length - 1 ? "1px solid #F4F1ED" : "none",
                   }}
                 >
-                  <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 500, color: "#1C1917" }}>{row.eta}</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500, color: "#1C1917" }}>{row.eta}</div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: "#1C1917" }}>{row.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15, color: "#1C1917" }}>{row.name}</div>
                     {row.km && <div style={{ fontSize: 11, color: "#9A948E", marginTop: 2 }}>{row.km}</div>}
                   </div>
                   <div>
@@ -1867,7 +2077,7 @@ export function MapView({
                       <div style={{ fontSize: 10, color: "#9A948E", marginTop: 1 }}>feels {row.feelsLike}</div>
                     )}
                   </div>
-                  <div style={{ fontSize: 13, color: "#6B6560" }}>
+                  <div style={{ fontSize: 14, color: "#6B6560" }}>
                     {row.condition}
                     {row.precip && parseFloat(row.precip) > 0 && (
                       <div style={{ fontSize: 10, color: "#6B6560", marginTop: 2 }}>🌧 {row.precip}</div>
