@@ -18,7 +18,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { HlsVideo } from "@/components/HlsVideo";
 
-
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:8000";
 
 function proxyCameraImage(imageUrl: string | null | undefined): string | null {
