@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { MapPin, Loader2, X } from "lucide-react";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL as string || "http://localhost:8000/api";
+
 interface LocationAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
@@ -19,16 +21,14 @@ interface Suggestion {
   stateCode?: string;
 }
 
-interface GeoapifyFeature {
-  properties: {
-    formatted: string;
-    lat: number;
-    lon: number;
-    city?: string;
-    country?: string;
-    state?: string;
-    state_code?: string;
-  };
+interface AutocompleteResult {
+  formatted: string;
+  lat: number;
+  lon: number;
+  city?: string;
+  country?: string;
+  state?: string;
+  state_code?: string;
 }
 
 export function LocationAutocomplete({
@@ -44,9 +44,6 @@ export function LocationAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  const GEOAPIFY_API_KEY =
-    import.meta.env.VITE_GEOAPIFY_API_KEY || "REMOVED_SECRET";
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -70,22 +67,22 @@ export function LocationAutocomplete({
 
       try {
         const response = await fetch(
-          `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(value)}&apiKey=${GEOAPIFY_API_KEY}&limit=8&lang=en`,
+          `${API_BASE}/routes/locations/autocomplete/?q=${encodeURIComponent(value)}&limit=8`,
           { signal: abortControllerRef.current.signal }
         );
         if (!response.ok) throw new Error("Failed to fetch locations");
 
-        const data = (await response.json()) as { features?: GeoapifyFeature[] };
-        if (data.features && data.features.length > 0) {
+        const data = (await response.json()) as { success: boolean; results?: AutocompleteResult[] };
+        if (data.success && data.results && data.results.length > 0) {
           setSuggestions(
-            data.features.map((f) => ({
-              formatted: f.properties.formatted,
-              lat: f.properties.lat,
-              lon: f.properties.lon,
-              city: f.properties.city,
-              country: f.properties.country,
-              state: f.properties.state,
-              stateCode: f.properties.state_code,
+            data.results.map((r) => ({
+              formatted: r.formatted,
+              lat: r.lat,
+              lon: r.lon,
+              city: r.city,
+              country: r.country,
+              state: r.state,
+              stateCode: r.state_code,
             }))
           );
         } else {
@@ -104,7 +101,7 @@ export function LocationAutocomplete({
       clearTimeout(debounceTimer);
       abortControllerRef.current?.abort();
     };
-  }, [value, showSuggestions, GEOAPIFY_API_KEY]);
+  }, [value, showSuggestions]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange(e.target.value);

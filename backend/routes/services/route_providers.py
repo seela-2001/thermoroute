@@ -80,19 +80,20 @@ class RouteProvider:
 
     @staticmethod
     def _extract_route_name(legs):
-        """Extract the primary highway reference from OSRM step refs."""
+        """Extract highway refs from OSRM steps, returning up to 2 joined by ' / '."""
         refs = []
         names = []
         for leg in legs:
             for step in leg.get("steps", []):
-                ref = (step.get("ref") or "").strip()
+                raw_ref = (step.get("ref") or "").strip()
+                for ref in (r.strip() for r in raw_ref.split(";") if r.strip()):
+                    if ref not in refs:
+                        refs.append(ref)
                 name = (step.get("name") or "").strip()
-                if ref and ref not in refs:
-                    refs.append(ref)
-                elif name and name not in names and name.lower() not in ("", "unnamed road"):
+                if name and name not in names and name.lower() not in ("", "unnamed road"):
                     names.append(name)
         if refs:
-            return refs[0]
+            return " / ".join(refs[:2])
         if names:
             return names[0]
         return None

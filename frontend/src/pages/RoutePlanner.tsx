@@ -135,11 +135,12 @@ export function RoutePlanner() {
         response.routes[0]?.id ??
         null;
 
+      const routeLetters = ["A", "B", "C", "D", "E"];
       const finalRoutes: RouteData[] = response.routes.map((route, idx) => {
         const mapped = mapBackendRoute(route, originName, destName);
         return {
           ...mapped,
-          name: route.id === recommendedId ? "Recommended Route" : `Alternative Route ${idx}`,
+          name: route.name || `Route ${routeLetters[idx] ?? idx + 1}`,
         };
       });
 

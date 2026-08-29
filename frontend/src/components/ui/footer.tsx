@@ -14,18 +14,21 @@ export function Footer({ className }: { className?: string }) {
                     <div className="flex gap-4">
                         <Link
                             to="/privacy"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Privacy Policy
                         </Link>
                         <Link
                             to="/terms"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Terms
                         </Link>
                         <Link
                             to="/contact"
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Contact

@@ -131,7 +131,7 @@ export function mapBackendRoute(route: AnalyzeRoute, origin: string, destination
   }));
   return {
     id: route.id,
-    name: route.name || "Route",
+    name: route.name || "",
     via: route.name || "",
     distance: `${route.distance_km.toFixed(1)} km`,
     duration: `${Math.round(route.duration_min)} min`,

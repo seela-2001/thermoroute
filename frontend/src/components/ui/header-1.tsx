@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 import { MenuToggleIcon } from '@/components/ui/menu-toggle-icon';
 import { useScroll } from '@/components/ui/use-scroll';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
+import { UsRoadsMegaMenu } from '@/components/ui/us-roads-mega-menu';
 import logo from '@/components/ui/images/642e6491-fdc6-4250-bf22-1af5448a877b.png';
 
 export function Header() {
@@ -13,16 +15,12 @@ export function Header() {
 
     const links = [
         {
-            label: 'Features',
-            href: '#',
-        },
-        {
             label: 'Pricing',
-            href: '#',
+            href: '/pricing',
         },
         {
             label: 'Blog',
-            href: '#',
+            href: '/blog',
         },
     ];
 
@@ -49,12 +47,15 @@ export function Header() {
                     <img src={logo} alt="Logo" className="h-18 w-auto" />
                 </a>
                 <div className="hidden items-center gap-2 md:flex">
+                    <UsRoadsMegaMenu />
                     {links.map((link) => (
-                        <a key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" href={link.href}>
+                        <Link key={link.label} className="hover:bg-gray-100 rounded-md px-4 py-2 text-sm font-medium" to={link.href}>
                             {link.label}
-                        </a>
+                        </Link>
                     ))}
-                    <Button>Get Started</Button>
+                    <Button asChild>
+                        <Link to="/plan">Get Started</Link>
+                    </Button>
                 </div>
                 <Button
                     size="icon"
@@ -70,21 +71,25 @@ export function Header() {
             </nav>
             <MobileMenu open={open} className="flex flex-col justify-between gap-2">
                 <div className="grid gap-y-2">
+                    <UsRoadsMegaMenu />
                     {links.map((link) => (
-                        <a
+                        <Link
                             key={link.label}
                             className="hover:bg-gray-100 rounded-md justify-start px-4 py-2 text-sm font-medium"
-                            href={link.href}
+                            to={link.href}
+                            onClick={() => setOpen(false)}
                         >
                             {link.label}
-                        </a>
+                        </Link>
                     ))}
                 </div>
                 <div className="flex flex-col gap-2">
                     <Button variant="outline" className="w-full">
                         Sign In
                     </Button>
-                    <Button className="w-full">Get Started</Button>
+                    <Button className="w-full" asChild>
+                        <Link to="/plan" onClick={() => setOpen(false)}>Get Started</Link>
+                    </Button>
                 </div>
             </MobileMenu>
         </header>
