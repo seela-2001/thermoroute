@@ -162,11 +162,11 @@ function Hero() {
           }
 
           .animate-scroll-left {
-            animation: scroll-left 35s ease-in-out infinite;
+            animation: scroll-left 20s ease-in-out infinite;
           }
 
           .animate-scroll-right {
-            animation: scroll-right 38s ease-in-out infinite;
+            animation: scroll-right 22s ease-in-out infinite;
           }
 
           @media (prefers-reduced-motion: reduce) {
