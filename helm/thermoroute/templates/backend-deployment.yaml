@@ -136,7 +136,7 @@ spec:
 
           startupProbe:
             httpGet:
-              path: /health/live/
+              path: api/health/live/
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -145,7 +145,7 @@ spec:
 
           livenessProbe:
             httpGet:
-              path: /health/live
+              path: api/health/live
               port: 8000
               initialDelaySeconds: 30s
               periodSeconds: 10
@@ -154,7 +154,7 @@ spec:
           
           readnessProbe:
             httpGet: 
-              path: /health/read
+              path: api/health/read
               port: 8000
               initialDelaySeconds: 10
               periodSeconds: 5
