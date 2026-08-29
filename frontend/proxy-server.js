@@ -1,5 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+
+const FORTYGUARD_API_KEY = process.env.FORTYGUARD_API_KEY;
+if (!FORTYGUARD_API_KEY) {
+  console.error('Missing FORTYGUARD_API_KEY in environment variables');
+  process.exit(1);
+}
 
 const app = express();
 const PORT = 3001;
@@ -15,7 +24,7 @@ app.get('/', (req, res) => {
 // Job status polling - forwarded verbatim
 app.get('/status/:id', async (req, res) => {
   try {
-    const apiKey = "a65c8b5d2ab8235c0138fb2020621e40";
+    const apiKey = FORTYGUARD_API_KEY;
 
     const response = await fetch(`https://api.fortyguard.com/v1/status/${req.params.id}`, {
       method: 'GET',
