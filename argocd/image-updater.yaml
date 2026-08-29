@@ -9,7 +9,7 @@ spec:
     gitConfig: 
       repository: https://github.com/seela-2001/thermoroute
       branch: main
-      writeBackTarget: helmvalues:helm/thermoroute/values.yaml
+      writeBackTarget: helmvalues:./values.yaml
 
   applicationRefs:
     - namePattern: thermoroute-application
