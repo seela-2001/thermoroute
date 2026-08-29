@@ -46,6 +46,6 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           tags: |
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.output.sha }}
-            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.output.version }}
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.outputs.sha }}
+            ${{ vars.DOCKERHUB_USERNAME }}/thermoroute-frontend:${{ steps.meta.outputs.version }}
       
