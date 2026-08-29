@@ -9,13 +9,13 @@ spec:
     gitConfig: 
       repository: https://github.com/seela-2001/thermoroute
       branch: main
-      writeBackTarget: helmvalues:./values.yaml
+      writeBackTarget: helmvalues:/helm/thermoroute/values.yaml
 
   applicationRefs:
     - namePattern: thermoroute-application
       images:
         - alias: backend
-          imageName: sohila12/thermoroute-backend:v1.0.68
+          imageName: sohila12/thermoroute-backend:v1.0.0
           commonUpdateSettings:
             updateStrategy: semver
           manifestTargets:
@@ -24,7 +24,7 @@ spec:
               tag: backend.image.tag
 
         - alias: frontend
-          imageName: sohila12/thermoroute-frontend:v1.0.48
+          imageName: sohila12/thermoroute-frontend:v1.0.0
           commonUpdateSettings:
             updateStrategy: semver
           manifestTargets:
