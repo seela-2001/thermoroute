@@ -1,5 +1,6 @@
 'use client';
 
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 export function Footer({ className }: { className?: string }) {
@@ -11,24 +12,24 @@ export function Footer({ className }: { className?: string }) {
                         © 2026 ThermoDispatch.
                     </p>
                     <div className="flex gap-4">
-                        <a
-                            href="#"
+                        <Link
+                            to="/privacy"
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Privacy Policy
-                        </a>
-                        <a
-                            href="#"
+                        </Link>
+                        <Link
+                            to="/terms"
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Terms
-                        </a>
-                        <a
-                            href="#"
+                        </Link>
+                        <Link
+                            to="/contact"
                             className="text-xs text-gray-500 transition-colors hover:text-gray-700"
                         >
                             Contact
-                        </a>
+                        </Link>
                     </div>
                 </div>
             </div>

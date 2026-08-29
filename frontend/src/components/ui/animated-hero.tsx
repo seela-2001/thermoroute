@@ -8,26 +8,21 @@ import bg3 from '@/components/ui/images/background (3).jpg';
 import bg4 from '@/components/ui/images/background (4).jpg';
 import bg5 from '@/components/ui/images/background (5).jpg';
 import bg6 from '@/components/ui/images/background (6).jpg';
+import bg7 from '@/components/ui/images/background (7).jpg';
+import bg10 from '@/components/ui/images/background (10).jpg';
+import bg11 from '@/components/ui/images/background (11).jpg';
 
-// ROW 1 - Uses background images 1-2 (duplicated)
-const row1Images = [
-  bg1, bg2, bg1, bg2, bg1, bg2,
-];
+// ROW 1 - Highway fleet + warehouse logistics
+const row1Images = [bg1, bg7, bg10, bg1, bg7, bg10];
 
-// ROW 2 - Uses background images 3-4 (duplicated)
-const row2Images = [
-  bg3, bg4, bg3, bg4, bg3, bg4,
-];
+// ROW 2 - Heat shimmer road + shipping port
+const row2Images = [bg2, bg11, bg3, bg2, bg11, bg3];
 
-// ROW 3 - Uses background images 5-6 (duplicated)
-const row3Images = [
-  bg5, bg6, bg5, bg6, bg5, bg6,
-];
+// ROW 3 - Aerial trucks + sunset convoys
+const row3Images = [bg4, bg5, bg10, bg4, bg5, bg10];
 
-// ROW 4 - Uses all 6 background images
-const row4Images = [
-  bg1, bg2, bg3, bg4, bg5, bg6,
-];
+// ROW 4 - All images mixed
+const row4Images = [bg6, bg7, bg2, bg11, bg1, bg5];
 
 // Card width variants for visual variety
 const cardWidths = ['w-36', 'w-44', 'w-40', 'w-48', 'w-38', 'w-42'];
