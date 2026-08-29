@@ -261,6 +261,9 @@ class LocationService:
                     "country": result.get(
                         "country"
                     ),
+                    "state_code": result.get(
+                        "state_code"
+                    ),
                     "country_code": result.get(
                         "country_code"
                     ),
