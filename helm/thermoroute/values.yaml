@@ -4,7 +4,7 @@ backend:
   replicaCount: 2
   image: 
     repository: sohila12/thermoroute-backend
-    tag: latest
+    tag: "v1.0.44"
     pullPolicy: Always
 
   containerPort: 8000
@@ -26,7 +26,7 @@ frontend:
   replicaCount: 2
   image: 
     repository: sohila12/thermoroute-frontend
-    tag: latest
+    tag: "v1.0.0"
     pullPolicy: Always
   
   containerPort: 3000
