@@ -1,63 +1,49 @@
 namespace: thermoroute
-
 backend:
   replicaCount: 2
-  image: 
+  image:
     repository: sohila12/thermoroute-backend
-    tag: "v1.0.68"
+    tag: "v1.0.72"
     pullPolicy: Always
-
   containerPort: 8000
   service:
     type: ClusterIP
     port: 8000
-  
-  resources:
-    requests: 
-      cpu: 100m
-      memory: 128Mi
-
-    limits:
-      cpu: 500m
-      memory: 512Mi
-
-
-frontend:
-  replicaCount: 2
-  image: 
-    repository: sohila12/thermoroute-frontend
-    tag: "v1.0.45"
-    pullPolicy: Always
-  
-  containerPort: 3000
-  service:
-    type: ClusterIP
-    port: 3000
-
   resources:
     requests:
       cpu: 100m
       memory: 128Mi
-
     limits:
       cpu: 500m
       memory: 512Mi
-
+frontend:
+  replicaCount: 2
+  image:
+    repository: sohila12/thermoroute-frontend
+    tag: "v1.0.61"
+    pullPolicy: Always
+  containerPort: 3000
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 postgres:
-  image: 
+  image:
     repository: postgres
     tag: "17"
-
   database: thermoroute
   username: thermoroute
-
   service:
     port: 5432
-  
-  persistance: 
-    enabled: true 
+  persistance:
+    enabled: true
     size: 5Gi
-
 ingress:
   enabled: true
   className: nginx
