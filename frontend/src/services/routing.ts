@@ -38,7 +38,7 @@ export async function fetchRoutes(
     throw new Error('No routes found between these locations');
   }
 
-  return data.routes.slice(0, maxRoutes).map((r: any) => ({
+  return data.routes.slice(0, maxRoutes).map((r: { geometry: { coordinates: [number, number][] }; distance: number; duration: number }) => ({
     geometry: r.geometry.coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng })),
     distanceMeters: r.distance,
     durationSeconds: r.duration,

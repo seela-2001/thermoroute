@@ -243,7 +243,7 @@ export function createHeatLegend(): LeafletControl {
             color: #6b7280;
             margin-bottom: 8px;
           ">
-            Heat Exposure
+            Heat exposure
           </div>
           <div style="
             display: flex;
@@ -258,10 +258,10 @@ export function createHeatLegend(): LeafletControl {
               flex: 1;
               height: 6px;
               background: linear-gradient(to right,
-                #10b981 0%,
-                #f59e0b 33%,
-                #f97316 66%,
-                #dc2626 100%
+                #0EA472 0%,
+                #D4A000 33%,
+                #F97316 66%,
+                #DC2626 100%
               );
               border-radius: 3px;
             "></div>

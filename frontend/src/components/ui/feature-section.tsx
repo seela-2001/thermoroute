@@ -10,7 +10,7 @@ export function FeatureSection() {
           {/* Left Column */}
           <div className="flex flex-col gap-6 md:w-1/2">
             {/* Eyebrow */}
-            <p className="text-xs font-semibold tracking-widest text-indigo-600 uppercase">
+            <p className="text-xs font-semibold tracking-widest text-orange-500 uppercase">
               WHAT IT DOES BEST
             </p>
 
@@ -22,19 +22,19 @@ export function FeatureSection() {
 
             {/* Description */}
             <p className="text-base leading-relaxed text-gray-600">
-              Every route is analyzed for street-level heat exposure, weather conditions, road visibility, and stopping opportunities. ThermoDispatch compares the alternatives and recommends the route that keeps your crew safer and more comfortable.
+              Every route is analyzed for street-level heat exposure, humidity, UV index, and air quality at each mile. ThermoDispatch scores every departure window and recommends the route and time that minimizes heat stress on your crew from start to finish.
             </p>
 
             {/* Feature List */}
             <div className="flex flex-col gap-3">
               {[
-                'Street-level heat exposure across every route segment',
-                'Hour-by-hour heat risk from departure to arrival',
-                'Contextual fuel and rest stops along the journey',
-                'Road cameras and weather conditions on relevant segments',
+                'Street-level heat index across every route segment',
+                'Hour-by-hour heat risk scored for each departure time',
+                'Fuel and rest stops identified along the route',
+                'Road cameras and live conditions on key segments',
               ].map((feature, index) => (
                 <div key={index} className="flex items-start gap-3">
-                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <Check className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
                   <p className="text-base text-gray-700">{feature}</p>
                 </div>
               ))}
@@ -43,50 +43,62 @@ export function FeatureSection() {
 
           {/* Right Column */}
           <div className="flex flex-col gap-6 md:w-1/2">
-            {/* Purple Forecast Card */}
-            <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-5 shadow-lg shadow-indigo-200/50">
+            {/* Heat Route Card */}
+            <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-lg shadow-orange-100/60">
               {/* Route Header */}
               <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-800">Denver, CO</span>
+                <span className="text-sm font-medium text-gray-800">Phoenix, AZ</span>
                 <span className="text-gray-400">→</span>
-                <span className="text-sm font-medium text-gray-800">Kansas City, MO</span>
+                <span className="text-sm font-medium text-gray-800">Tucson, AZ</span>
               </div>
 
               {/* Times */}
               <div className="mb-4 flex items-center justify-between text-xs text-gray-600">
-                <span>9:30a Wed</span>
-                <span>6:06p Wed</span>
+                <span>6:00a Wed</span>
+                <span>7:50a Wed</span>
               </div>
 
               {/* Timeline */}
               <div className="mb-4">
                 {/* Colored segments bar */}
                 <div className="relative mb-2 flex h-3 w-full rounded-full overflow-hidden">
-                  {/* Clear segment - green */}
-                  <div className="h-full bg-emerald-400" style={{ width: '45%' }} />
-                  {/* Caution segment - orange/yellow */}
+                  {/* Cool early morning */}
+                  <div className="h-full bg-emerald-400" style={{ width: '40%' }} />
+                  {/* Warming up */}
                   <div className="h-full bg-amber-400" style={{ width: '35%' }} />
-                  {/* Severe segment - pink/red */}
-                  <div className="h-full bg-rose-500" style={{ width: '20%' }} />
+                  {/* Hot segment near Tucson midday */}
+                  <div className="h-full bg-orange-500" style={{ width: '25%' }} />
                 </div>
 
                 {/* Circular markers */}
                 <div className="relative mb-2 h-2">
-                  {/* Start marker */}
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
-                  {/* Caution transition marker */}
-                  <div className="absolute left-[45%] top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-amber-400" />
-                  {/* Severe transition marker */}
-                  <div className="absolute left-[80%] top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-rose-500" />
-                  {/* End marker */}
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
+                  <div className="absolute left-[40%] top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-amber-400" />
+                  <div className="absolute left-[75%] top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-orange-500" />
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full border-2 border-white bg-orange-500" />
                 </div>
 
                 {/* Time labels */}
                 <div className="flex justify-between text-[10px] text-gray-500">
-                  <span>1:00p</span>
-                  <span>3:00p</span>
-                  <span>6:00p</span>
+                  <span>6:00a</span>
+                  <span>7:00a</span>
+                  <span>7:50a</span>
+                </div>
+              </div>
+
+              {/* Stats row */}
+              <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-white/70 px-2 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Peak temp</p>
+                  <p className="text-sm font-bold text-orange-500">102°F</p>
+                </div>
+                <div className="rounded-lg bg-white/70 px-2 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Heat index</p>
+                  <p className="text-sm font-bold text-amber-500">108°F</p>
+                </div>
+                <div className="rounded-lg bg-white/70 px-2 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Best window</p>
+                  <p className="text-sm font-bold text-emerald-500">5:00a</p>
                 </div>
               </div>
 
@@ -94,22 +106,22 @@ export function FeatureSection() {
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-sm bg-emerald-400" />
-                  <span className="text-gray-600">Clear</span>
+                  <span className="text-gray-600">Cool</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-sm bg-amber-400" />
-                  <span className="text-gray-600">Caution</span>
+                  <span className="text-gray-600">Warm</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-sm bg-rose-500" />
-                  <span className="text-gray-600">Severe</span>
+                  <div className="h-2 w-2 rounded-sm bg-orange-500" />
+                  <span className="text-gray-600">Hot</span>
                 </div>
               </div>
             </div>
 
             {/* Bottom Paragraph */}
             <p className="text-base leading-relaxed text-gray-900">
-              <span className="font-semibold">That's the whole trip.</span> Leave at 9:30 and you're in storms by three, near Salina, for two hours - then clear into Kansas City. You didn't read a single number.
+              <span className="font-semibold">That's the whole picture.</span> Leave at 6am and you catch the cool stretch before the desert heats up. Wait until 9am and you're driving I-10 at peak UV with a 108°F heat index on your crew. You didn't read a single chart.
             </p>
           </div>
         </div>
