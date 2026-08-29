@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "corsheaders",
     'heat',
     'routes',
+    'health'
 ]
 
 MIDDLEWARE = [
