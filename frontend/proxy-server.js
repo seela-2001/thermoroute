@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
 
 const FORTYGUARD_API_KEY = process.env.FORTYGUARD_API_KEY;
 if (!FORTYGUARD_API_KEY) {
