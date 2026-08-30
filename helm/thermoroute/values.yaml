@@ -57,3 +57,7 @@ ingress:
   enabled: true
   className: nginx
   host: thermoroute.local
+
+networkPolicy:
+  enabled: true 
+    
