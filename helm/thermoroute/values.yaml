@@ -1,4 +1,5 @@
 namespace: thermoroute
+
 backend:
   replicaCount: 2
   image:
@@ -16,6 +17,7 @@ backend:
     limits:
       cpu: 500m
       memory: 512Mi
+
 frontend:
   replicaCount: 2
   image:
@@ -33,6 +35,7 @@ frontend:
     limits:
       cpu: 500m
       memory: 512Mi
+
 postgres:
   image:
     repository: postgres
@@ -44,6 +47,7 @@ postgres:
   persistance:
     enabled: true
     size: 5Gi
+
 ingress:
   enabled: true
   className: nginx
