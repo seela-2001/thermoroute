@@ -169,10 +169,8 @@ class RiskCalculator:
                 "risk_level": self.classify_risk_level(risk_score).value
             })
 
-        weights = [s["risk_score"] for s in segment_risks]
         overall_score = int(round(
-            sum(s * w for s, w in zip([r["risk_score"] for r in segment_risks], weights)) / sum(weights)
-            if weights else 0
+            sum(r["risk_score"] for r in segment_risks) / len(segment_risks)
         ))
 
         critical_levels = {RiskLevel.HIGH, RiskLevel.VERY_HIGH, RiskLevel.EXTREME}
@@ -187,6 +185,7 @@ class RiskCalculator:
             "max_humidity": max((s.get("humidity", 0) for s in segments), default=0),
             "max_heat_index": max((s.get("heat_index", 0) for s in segments), default=0),
             "max_aqi": max((s.get("aqi", 0) for s in segments), default=0),
+            "max_uv_index": max((s.get("uv", 0) or 0 for s in segments), default=0),
         }
 
         return HeatAnalysisResult(

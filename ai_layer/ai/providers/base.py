@@ -16,9 +16,9 @@ class LLMResponse:
 
 @dataclass
 class LLMConfig:
-    model: str = "google/gemma-2-9b-it:free"
+    model: str = "minimax/minimax-m3:free"
     temperature: float = 0.3
-    max_tokens: int = 1000
+    max_tokens: int = 1500
     timeout_seconds: int = 30
     json_mode: bool = True
     max_retries: int = 3
@@ -26,9 +26,9 @@ class LLMConfig:
     @classmethod
     def from_env(cls) -> 'LLMConfig':
         return cls(
-            model=os.getenv("OPENROUTER_MODEL", "google/gemma-2-9b-it:free"),
+            model=os.getenv("OPENROUTER_MODEL", "minimax/minimax-m3:free"),
             temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.3")),
-            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "1000")),
+            max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "1500")),
             timeout_seconds=int(os.getenv("OPENROUTER_TIMEOUT", "30")),
             json_mode=os.getenv("OPENROUTER_JSON_MODE", "true").lower() == "true",
             max_retries=int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))

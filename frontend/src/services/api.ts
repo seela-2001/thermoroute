@@ -58,17 +58,6 @@ export interface AnalyzeHeatPoint {
   cumulative_duration_seconds?: number | null;
 }
 
-export interface AnalyzeCamera {
-  id: string | null;
-  name: string;
-  lat: number;
-  lon: number;
-  road_name?: string | null;
-  direction?: string | null;
-  image_url?: string | null;
-  stream_url?: string | null;
-}
-
 export interface AnalyzePoi {
   id: string | null;
   type: string;
@@ -113,7 +102,6 @@ export interface AnalyzeRoute {
   evaluations: AnalyzeEvaluation[];
   pois: AnalyzePoi[];
   segments?: AnalyzeSegment[];
-  cameras: AnalyzeCamera[];
 }
 
 export interface CriticalAlert {
@@ -162,6 +150,7 @@ export interface AnalyzeResponse {
     reason: string;
     key_factors: string[];
     safety_tip: string;
+    best_departure_times?: string[];
     alerts: CriticalAlert[];
     cooling_stops: CoolingStop[];
   } | null;
@@ -173,6 +162,30 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatExtractedFields {
+  origin_text?: string | null;
+  destination_text?: string | null;
+  origin_lat?: number | null;
+  origin_lng?: number | null;
+  destination_lat?: number | null;
+  destination_lng?: number | null;
+  departure_start?: string | null;
+  departure_end?: string | null;
+  jurisdiction?: string | null;
+}
+
+export interface ChatResponse {
+  reply: string;
+  extracted_fields: ChatExtractedFields;
+  action: 'fill_form' | 'clarify' | 'submit';
+  auto_submit?: boolean;
+}
 
 export const routesApi = {
   planRoute: async (request: RouteRequest): Promise<RouteResponse> => {
@@ -194,6 +207,11 @@ export const routesApi = {
     const response = await api.get('/heat/data/', {
       params: { lat, lon, radius_km: radiusKm },
     });
+    return response.data;
+  },
+
+  chatWithAI: async (message: string, history: ChatMessage[], mode?: string): Promise<ChatResponse> => {
+    const response = await api.post('/routes/ai/chat/', { message, history, mode }, { timeout: 30000 });
     return response.data;
   },
 };

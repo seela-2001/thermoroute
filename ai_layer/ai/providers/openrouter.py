@@ -12,7 +12,7 @@ from ..exceptions import LLMError
 class OpenRouterProvider(LLMProvider):
 
     BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions")
-    DEFAULT_MODEL = "google/gemma-2-9b-it:free"
+    DEFAULT_MODEL = "minimax/minimax-m3:free"
 
     def __init__(
         self,
@@ -53,10 +53,15 @@ class OpenRouterProvider(LLMProvider):
         json_mode = kwargs.get("json_mode", self.config.json_mode)
         max_retries = kwargs.get("max_retries", self.config.max_retries)
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        # Allow callers to pass a full multi-turn messages list via kwarg
+        extra_messages: list | None = kwargs.get("messages")
+        if extra_messages is not None:
+            messages = [{"role": "system", "content": system_prompt}] + extra_messages
+        else:
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
 
         request_json = {
             "model": model,
@@ -65,7 +70,9 @@ class OpenRouterProvider(LLMProvider):
             "max_tokens": max_tokens,
         }
 
-        if json_mode:
+        # response_format is not supported by :free models on OpenRouter —
+        # skip it and rely on the system prompt's JSON instruction instead.
+        if json_mode and ":free" not in model:
             request_json["response_format"] = {"type": "json_object"}
 
         for attempt in range(max_retries):

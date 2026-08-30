@@ -5,7 +5,6 @@ import os
 
 from .route_sampling_service import RouteSamplingService
 from .poi_services import POIService
-from .camera_services import CameraService
 from .tomtom_routing_services import TomTomRoutingService
 from heat.services.heat_analysis_services import HeatAnalysisService
 
@@ -24,7 +23,6 @@ class TemporalRouteEvaluationService:
         self.sampling_service = RouteSamplingService()
         self.heat_analysis_service = HeatAnalysisService()
         self.poi_service = POIService()
-        self.camera_service = CameraService()
         self.tomtom_service = TomTomRoutingService()
         try:
             self.max_heat_points_per_route = int(
@@ -188,24 +186,12 @@ class TemporalRouteEvaluationService:
                 for poi in segment.get("pois", [])
             ]
 
-            try:
-                cameras = self.camera_service.get_cameras_for_route(
-                    route=route,
-                    jurisdiction=jurisdiction,
-                )
-                if not isinstance(cameras, list):
-                    cameras = []
-            except Exception as exc:
-                print(f"Camera service unavailable: {exc}")
-                cameras = []
-
             contexts.append(
                 {
                     "route": route,
                     "samples": samples,
                     "segments": segments,
                     "pois": aggregate_pois,
-                    "cameras": cameras,
                 }
             )
 
@@ -396,74 +382,81 @@ class TemporalRouteEvaluationService:
 
         return chosen
 
+    @staticmethod
+    def _traffic_factor(departure_time: datetime) -> float:
+        """Time-of-day congestion multiplier (fallback when TomTom is unavailable)."""
+        hour = departure_time.hour
+        weekday = departure_time.weekday()  # 0=Monday, 6=Sunday
+        if weekday >= 5:
+            return 1.06  # light weekend traffic
+        if 7 <= hour <= 8:
+            return 1.30  # morning rush
+        if 16 <= hour <= 18:
+            return 1.35  # evening rush
+        if hour == 9 or hour == 15 or hour == 19:
+            return 1.15  # shoulder
+        if 10 <= hour <= 14:
+            return 1.08  # mid-day
+        return 1.02  # overnight / early morning
+
     def _rescale_durations(
         self,
         samples,
         departure_time,
         traffic_aware,
     ):
-        if not traffic_aware or not self.tomtom_service.available:
+        if not traffic_aware:
             return samples, None
 
         if not samples:
             return samples, None
 
         osrm_total = float(
-            samples[-1].get(
-                "cumulative_duration_seconds",
-                0,
-            )
+            samples[-1].get("cumulative_duration_seconds", 0)
         )
-
         if osrm_total <= 0:
             return samples, None
 
-        geometry = [
-            {"lat": sample["lat"], "lon": sample["lon"]}
-            for sample in samples
-        ]
+        # ── TomTom live traffic ──────────────────────────────
+        if self.tomtom_service.available:
+            geometry = [
+                {"lat": sample["lat"], "lon": sample["lon"]}
+                for sample in samples
+            ]
+            result = self.tomtom_service.get_travel_time(geometry, departure_time)
+            if result.get("success"):
+                tomtom_total = float(result["travel_time_seconds"])
+                ratio = tomtom_total / osrm_total
+                if math.isfinite(ratio) and ratio > 0:
+                    print(
+                        f"TomTom travel time applied: ratio={ratio:.3f} "
+                        f"(departure {departure_time.isoformat()})"
+                    )
+                    return [
+                        {
+                            **s,
+                            "cumulative_duration_seconds": round(
+                                float(s.get("cumulative_duration_seconds", 0)) * ratio, 2
+                            ),
+                        }
+                        for s in samples
+                    ], tomtom_total
 
-        result = self.tomtom_service.get_travel_time(
-            geometry,
-            departure_time,
-        )
-
-        if not result.get("success"):
-            return samples, None
-
-        tomtom_total = float(
-            result["travel_time_seconds"]
-        )
-
-        ratio = tomtom_total / osrm_total
-
-        if not math.isfinite(ratio) or ratio <= 0:
-            return samples, None
-
+        # ── Fallback: time-of-day traffic factor ─────────────
+        ratio = self._traffic_factor(departure_time)
         print(
-            "TomTom travel time applied: "
-            f"ratio={ratio:.3f} "
+            f"Traffic fallback applied: factor={ratio:.2f} "
             f"(departure {departure_time.isoformat()})"
         )
-
-        rescaled = [
+        return [
             {
-                **sample,
+                **s,
                 "cumulative_duration_seconds": round(
-                    float(
-                        sample.get(
-                            "cumulative_duration_seconds",
-                            0,
-                        )
-                    )
-                    * ratio,
-                    2,
+                    float(s.get("cumulative_duration_seconds", 0)) * ratio, 2
                 ),
             }
-            for sample in samples
-        ]
-
-        return rescaled, tomtom_total
+            for s in samples
+        ], None
 
     @staticmethod
     def _build_evaluated_route(
@@ -494,7 +487,6 @@ class TemporalRouteEvaluationService:
                 "error": heat_result.get("errors", ["Heat analysis failed"]),
                 "pois": context["pois"],
                 "segments": context["segments"],
-                "cameras": context["cameras"],
                 "samples": [],
             }
 
@@ -517,7 +509,6 @@ class TemporalRouteEvaluationService:
             "heat_data": heat_result["heat_data"],
             "pois": context["pois"],
             "segments": context["segments"],
-            "cameras": context["cameras"],
             "samples": heat_result["heat_data"],
             "partial": heat_result.get("partial", False),
             "errors": heat_result.get("errors", []),
@@ -538,7 +529,6 @@ class TemporalRouteEvaluationService:
             "error": [error],
             "pois": context["pois"],
             "segments": context["segments"],
-            "cameras": context["cameras"],
             "samples": [],
         }
 
@@ -648,7 +638,6 @@ class TemporalRouteEvaluationService:
                         "evaluations": [],
                         "pois": route.get("pois", []),
                         "segments": route.get("segments", []),
-                        "cameras": route.get("cameras", []),
                     }
 
                 route_map[route_id]["evaluations"].append(
