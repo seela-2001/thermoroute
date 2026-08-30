@@ -29,7 +29,7 @@ frontend:
     repository: sohila12/thermoroute-frontend
     tag: "v1.0.61"
     pullPolicy: Always
-  containerPort: 3000
+  containerPort: 80
   service:
     type: ClusterIP
     port: 3000
