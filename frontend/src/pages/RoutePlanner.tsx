@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { routesApi } from "@/services/api";
 import type { CriticalAlert, CoolingStop } from "@/services/api";
+import type { ChatExtractedFields } from "@/services/api";
 import { toStateCode, mapBackendRoute, buildDepartureHours } from "@/utils/routeUtils";
 import type { RouteData } from "@/utils/routeUtils";
 import type { DepartureHourInfo } from "@/components/FloatingMapDock";
 import { PlanningForm } from "@/components/planning/PlanningForm";
 import { MapView } from "@/components/map/MapView";
+import { ChatWidget } from "@/components/ChatWidget";
 import "./MapView.css";
 
 function humanizeRouteError(err: unknown): string {
@@ -79,10 +81,15 @@ export function RoutePlanner() {
   const [stepMinutes, setStepMinutes] = useState(60);
   const [weatherWeightPct, setWeatherWeightPct] = useState(70);
   const [trafficAware, setTrafficAware] = useState(false);
+  const [passengerTypes, setPassengerTypes] = useState<string[]>([]);
 
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [error]);
   const [showMap, setShowMap] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -181,6 +188,48 @@ export function RoutePlanner() {
     runAnalysis(originCoords, destinationCoords, destinationState, origin, destination);
   };
 
+  const handleFillForm = (fields: ChatExtractedFields) => {
+    if (fields.origin_text) setOrigin(fields.origin_text);
+    if (fields.destination_text) setDestination(fields.destination_text);
+    if (fields.origin_lat != null && fields.origin_lng != null) {
+      setOriginCoords({ lat: fields.origin_lat, lng: fields.origin_lng });
+    }
+    if (fields.destination_lat != null && fields.destination_lng != null) {
+      setDestinationCoords({ lat: fields.destination_lat, lng: fields.destination_lng });
+      if (fields.jurisdiction) setDestinationState(fields.jurisdiction);
+    }
+    if (fields.departure_start && fields.departure_end) {
+      const start = new Date(fields.departure_start);
+      const end = new Date(fields.departure_end);
+      const hours = Math.max(1, Math.round((end.getTime() - start.getTime()) / 3_600_000));
+      setDepartureRangeHours(Math.min(hours, 12));
+    }
+  };
+
+  const handleAutoSubmit = (fields: ChatExtractedFields) => {
+    const oText = fields.origin_text || origin;
+    const dText = fields.destination_text || destination;
+    const oCoords = fields.origin_lat != null && fields.origin_lng != null
+      ? { lat: fields.origin_lat, lng: fields.origin_lng }
+      : null;
+    const dCoords = fields.destination_lat != null && fields.destination_lng != null
+      ? { lat: fields.destination_lat, lng: fields.destination_lng }
+      : null;
+    const dState = fields.jurisdiction || destinationState;
+
+    if (fields.origin_text) setOrigin(fields.origin_text);
+    if (fields.destination_text) setDestination(fields.destination_text);
+    if (oCoords) setOriginCoords(oCoords);
+    if (dCoords) {
+      setDestinationCoords(dCoords);
+      if (fields.jurisdiction) setDestinationState(fields.jurisdiction);
+    }
+
+    if (oCoords && dCoords) {
+      runAnalysis(oCoords, dCoords, dState, oText, dText);
+    }
+  };
+
   useEffect(() => {
     if (!hasAutoSubmit) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -211,34 +260,50 @@ export function RoutePlanner() {
         onDismissWarning={() => setHeatWarning(null)}
         heatLoadingLive={heatLoadingLive}
         recommendation={recommendation}
+        passengerTypes={passengerTypes}
+        weatherWeightPct={weatherWeightPct}
+        trafficAware={trafficAware}
       />
     );
   }
 
   return (
-    <PlanningForm
-      origin={origin}
-      onOriginChange={setOrigin}
-      onOriginSelect={(loc) => setOriginCoords({ lat: loc.lat, lng: loc.lng })}
-      destination={destination}
-      onDestinationChange={setDestination}
-      onDestinationSelect={(loc) => {
-        setDestinationCoords({ lat: loc.lat, lng: loc.lng });
-        setDestinationState(loc.state || "");
-      }}
-      departureRangeHours={departureRangeHours}
-      onDepartureRangeChange={setDepartureRangeHours}
-      stepMinutes={stepMinutes}
-      onStepMinutesChange={setStepMinutes}
-      weatherWeightPct={weatherWeightPct}
-      onWeatherWeightChange={setWeatherWeightPct}
-      trafficAware={trafficAware}
-      onTrafficAwareChange={setTrafficAware}
-      isSubmitting={isSubmitting}
-      showSuccess={showSuccess}
-      error={error}
-      onSubmit={handleSubmit}
-      onNavigateHome={() => navigate("/")}
-    />
+    <>
+      <PlanningForm
+        origin={origin}
+        onOriginChange={setOrigin}
+        onOriginSelect={(loc) => setOriginCoords({ lat: loc.lat, lng: loc.lng })}
+        destination={destination}
+        onDestinationChange={setDestination}
+        onDestinationSelect={(loc) => {
+          setDestinationCoords({ lat: loc.lat, lng: loc.lng });
+          setDestinationState(loc.state || "");
+        }}
+        departureRangeHours={departureRangeHours}
+        onDepartureRangeChange={setDepartureRangeHours}
+        stepMinutes={stepMinutes}
+        onStepMinutesChange={setStepMinutes}
+        weatherWeightPct={weatherWeightPct}
+        onWeatherWeightChange={setWeatherWeightPct}
+        trafficAware={trafficAware}
+        onTrafficAwareChange={setTrafficAware}
+        passengerTypes={passengerTypes}
+        onPassengerTypesChange={setPassengerTypes}
+        isSubmitting={isSubmitting}
+        showSuccess={showSuccess}
+        error={error}
+        onSubmit={handleSubmit}
+        onNavigateHome={() => navigate("/")}
+      />
+      <ChatWidget
+        onFillForm={handleFillForm}
+        onAutoSubmit={handleAutoSubmit}
+        onSubmit={() => {
+          if (originCoords && destinationCoords) {
+            runAnalysis(originCoords, destinationCoords, destinationState, origin, destination);
+          }
+        }}
+      />
+    </>
   );
 }

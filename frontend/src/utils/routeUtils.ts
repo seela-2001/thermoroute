@@ -1,5 +1,4 @@
 import type {
-  AnalyzeCamera,
   AnalyzeEvaluation,
   AnalyzeHeatPoint,
   AnalyzePoi,
@@ -27,7 +26,6 @@ export interface RouteData {
   heatRisk: string;
   heatUnavailable?: boolean;
   durationSeconds: number;
-  cameras: AnalyzeCamera[];
   pois: AnalyzePoi[];
   segments: AnalyzeSegment[];
   evaluations: AnalyzeEvaluation[];
@@ -144,7 +142,6 @@ export function mapBackendRoute(route: AnalyzeRoute, origin: string, destination
         : "Medium",
     heatUnavailable: avgTemp === null,
     durationSeconds: route.duration_min * 60,
-    cameras: route.cameras ?? [],
     pois: route.pois ?? [],
     segments: route.segments ?? [],
     evaluations: route.evaluations ?? [],
@@ -156,8 +153,8 @@ function backendLevelToDockRisk(level: string): string {
   switch (level.toUpperCase()) {
     case "LOW": return "low";
     case "MODERATE": return "moderate";
-    case "HIGH":
-    case "VERY_HIGH": return "high";
+    case "HIGH": return "high";
+    case "VERY_HIGH": return "very_high";
     case "EXTREME": return "extreme";
     default: return "moderate";
   }
@@ -184,12 +181,13 @@ export function buildDepartureHours(
       const rec = recsByTime.get(ev.departure_time);
       const risk = ev.risk?.level
         ? backendLevelToDockRisk(ev.risk.level)
-        : temp >= 40 ? "extreme" : temp >= 35 ? "high" : temp >= 30 ? "moderate" : "low";
+        : temp >= 40 ? "extreme" : temp >= 37 ? "very_high" : temp >= 33 ? "high" : temp >= 28 ? "moderate" : "low";
       return {
         label: formatDepartureLabel(ev.departure_time),
         tempValue: Math.round(temp),
         risk,
         routeScore: rec?.route_score ?? ev.route_score ?? null,
+        weatherScore: ev.weather_score ?? null,
         isBest: best ? ev.departure_time === best.departure_time : undefined,
         departureTime: ev.departure_time,
       };

@@ -1,4 +1,28 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
+
+class JourneyErrorBoundary extends Component<{ children: ReactNode; onClose: () => void }, { error: string | null }> {
+  constructor(props: { children: ReactNode; onClose: () => void }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(e: Error) { return { error: e.message }; }
+  componentDidCatch(e: Error, info: ErrorInfo) { console.error("Journey visualizer crashed:", e, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(9,9,11,0.65)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: 24, maxWidth: 360, width: "100%" }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Journey Plan error</div>
+            <div style={{ fontSize: 12, color: "#71717a", marginBottom: 16, wordBreak: "break-all" }}>{this.state.error}</div>
+            <button onClick={this.props.onClose} style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: "#1C1917", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Close</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import {
   ArrowLeft,
   Loader2,
@@ -9,14 +33,18 @@ import {
   Plus,
   Minus,
   Crosshair,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FloatingMapDock, type DepartureHourInfo } from "@/components/FloatingMapDock";
+import { ChatWidget } from "@/components/ChatWidget";
+import { HeatIntelTab } from "@/components/HeatIntelTab";
+import { StopJourneyVisualizer } from "@/components/StopJourneyVisualizer";
 import thermoLogo from "@/components/ui/images/fa492037-babd-45eb-b0a3-e2ee3fce2acb.png";
 import {
   createHeatGradientLayer,
   createGradientRouteLine,
-  createHeatLegend,
+
 } from "@/components/HeatGradientLayer";
 import type { RouteData } from "@/utils/routeUtils";
 import type { AnalyzePoi, CriticalAlert, CoolingStop } from "@/services/api";
@@ -40,6 +68,14 @@ L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   shadowUrl: markerShadow,
 });
+
+function fmtTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return iso;
+  }
+}
 
 // ─── Heat color helpers ───────────────────────────────────────────
 
@@ -70,11 +106,34 @@ function riskLabelFromTemp(t: number): string {
 }
 
 function comfortScoreFromRisk(risk: string, temp: number): number {
-  switch (risk.toLowerCase()) {
-    case "low":      return Math.max(72, Math.min(98, Math.round(92 - Math.max(0, temp - 20) * 0.5)));
-    case "moderate": return Math.max(50, Math.min(72, Math.round(70 - Math.max(0, temp - 28) * 0.6)));
-    case "high":     return Math.max(28, Math.min(50, Math.round(48 - Math.max(0, temp - 32) * 0.5)));
-    default:         return Math.max(8,  Math.min(28, Math.round(24 - Math.max(0, temp - 38) * 0.4)));
+  // Normalize: "medium" (RouteData) → "moderate", "very_high" → "extreme"
+  const lvl = risk.toLowerCase()
+    .replace("very_high", "extreme")
+    .replace("medium", "moderate");
+
+  // temp ≤ 0 means unavailable (parseTemp("--") = 0) — return mid-range per level
+  if (temp <= 0) {
+    switch (lvl) {
+      case "low":      return 84;
+      case "moderate": return 62;
+      case "high":     return 40;
+      default:         return 18;
+    }
+  }
+
+  switch (lvl) {
+    case "low":
+      // 92 at 20°C, floors at 72 around 60°C
+      return Math.max(72, Math.min(98, Math.round(92 - Math.max(0, temp - 20) * 0.5)));
+    case "moderate":
+      // 70 at 28°C, floors at 50 around 61°C
+      return Math.max(50, Math.min(72, Math.round(70 - Math.max(0, temp - 28) * 0.6)));
+    case "high":
+      // 50 at 28°C, descends ~1.2/°C, floors at 28 around 47°C — avoids flat-lining at 32°C
+      return Math.max(28, Math.min(50, Math.round(50 - Math.max(0, temp - 28) * 1.2)));
+    default:
+      // extreme / very_high: 28 at 35°C, floors at 8 around 60°C
+      return Math.max(8, Math.min(28, Math.round(28 - Math.max(0, temp - 35) * 0.8)));
   }
 }
 
@@ -292,6 +351,9 @@ export interface MapViewProps {
     alerts?: CriticalAlert[];
     cooling_stops?: CoolingStop[];
   } | null;
+  passengerTypes?: string[];
+  weatherWeightPct?: number;
+  trafficAware?: boolean;
 }
 
 // ─── MapView ──────────────────────────────────────────────────────
@@ -314,6 +376,9 @@ export function MapView({
   heatWarning,
   heatLoadingLive,
   recommendation,
+  passengerTypes = [],
+  weatherWeightPct = 70,
+  trafficAware = false,
 }: MapViewProps) {
   const [selectedRouteId, setSelectedRouteId] = useState<string>(
     () => recommendedRouteId ?? routes[0]?.id ?? ""
@@ -322,11 +387,14 @@ export function MapView({
   const [isSatellite, setIsSatellite] = useState(false);
   const [departureHover, setDepartureHover] = useState<DepartureHourInfo | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [activeTab, setActiveTab] = useState<"results" | "detail">("results");
+  const [activeTab, setActiveTab] = useState<"results" | "detail" | "ai">("results");
   const [unitF, setUnitF] = useState(false);
   const [selectedHourIdx, setSelectedHourIdx] = useState<number | null>(null);
   const [planApplied, setPlanApplied] = useState(false);
   const [poiFilter, setPoiFilter] = useState<string>("all");
+  const [rainVisible, setRainVisible] = useState(false);
+  const [windVisible, setWindVisible] = useState(false);
+  const [showJourneyVisualizer, setShowJourneyVisualizer] = useState(false);
 
   const mapRef = useRef<LeafletMap | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -339,6 +407,9 @@ export function MapView({
   const heatEmojiMarkersRef = useRef<LeafletMarker[]>([]);
   const deptGradientRef = useRef<LeafletLayerGroup | null>(null);
   const poiMarkerRef = useRef<LeafletMarker | null>(null);
+  const coolingStopMarkersRef = useRef<LeafletMarker[]>([]);
+  const rainLayerRef = useRef<LeafletLayerGroup | null>(null);
+  const windLayerRef = useRef<LeafletLayerGroup | null>(null);
   const mapCardRef = useRef<HTMLDivElement | null>(null);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
 
@@ -359,9 +430,6 @@ export function MapView({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const map: any = L.map(mapContainerRef.current, { center: [lat, lng], zoom: 10, zoomControl: false });
       mapRef.current = map;
-      const legend = createHeatLegend();
-      legend.addTo(map);
-      heatLegendRef.current = legend;
       setTimeout(() => map.invalidateSize(), 100);
       return () => {
         map.remove();
@@ -568,7 +636,9 @@ export function MapView({
         <div style="background:rgba(255,255,255,0.93);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(0,0,0,0.12);box-shadow:0 1px 5px rgba(0,0,0,0.25);font-size:15px;cursor:pointer;">${emoji}</div>
         ${etaLabel ? `<div style="background:rgba(28,25,23,0.82);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;white-space:nowrap;letter-spacing:0.02em;line-height:14px;">${etaLabel}</div>` : ""}
       </div>`;
-      const tempLine = safeTemp !== null ? `<span class="heat-tip-temp">${Math.round(safeTemp)}°C</span>` : "";
+      const dispTemp = safeTemp !== null ? (unitF ? Math.round(safeTemp * 9 / 5 + 32) : Math.round(safeTemp)) : null;
+      const tempUnit = unitF ? "°F" : "°C";
+      const tempLine = dispTemp !== null ? `<span class="heat-tip-temp">${dispTemp}${tempUnit}</span>` : "";
       const etaLine = etaLabel ? `<div style="margin-top:5px;font-size:10px;color:#a0c8e8;font-weight:600;">Arrives at ${etaLabel}</div>` : "";
       const tooltipHtml = `<div class="heat-tip-inner"><strong>${emoji} ${condLabel}</strong>${tempLine}<div class="heat-tip-desc">${tip}</div>${etaLine}</div>`;
       const m = L.marker([p.lat, p.lon], {
@@ -591,7 +661,7 @@ export function MapView({
       heatEmojiMarkersRef.current.forEach((m) => { try { map.removeLayer(m); } catch { /* stale */ } });
       heatEmojiMarkersRef.current = [];
     };
-  }, [routes, selectedRouteId, selectedHourIdx, departureHours]);
+  }, [routes, selectedRouteId, selectedHourIdx, departureHours, unitF]);
 
   // ── Heat glow ─────────────────────────────────────────────────
   useEffect(() => {
@@ -622,6 +692,128 @@ export function MapView({
     layer.addTo(map);
     heatGlowLayersRef.current.set(selectedRouteData.id, layer);
   }, [selectedRouteId, heatmapVisible, routes, departureHover, selectedRouteData]);
+
+  // ── Cooling stop markers ──────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    coolingStopMarkersRef.current.forEach(m => { try { map.removeLayer(m); } catch { /* stale */ } });
+    coolingStopMarkersRef.current = [];
+
+    const stops = recommendation?.cooling_stops ?? [];
+    for (const stop of stops) {
+      if (stop.lat == null || stop.lon == null) continue;
+      const nameTrunc = stop.name.length > 14 ? stop.name.slice(0, 13) + "…" : stop.name;
+      const iconHtml = `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="background:#06B6D4;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 6px rgba(6,182,212,0.45);font-size:13px;">🧊</div>
+        <div style="background:rgba(6,182,212,0.88);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:99px;white-space:nowrap;max-width:84px;overflow:hidden;text-overflow:ellipsis;">${nameTrunc}</div>
+      </div>`;
+      const m = L.marker([stop.lat, stop.lon], {
+        icon: L.divIcon({ html: iconHtml, className: "custom-marker", iconSize: [26, 46], iconAnchor: [13, 8] }),
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (m as any).bindTooltip(stop.message || stop.name, {
+        direction: "top", offset: [0, -16], className: "heat-emoji-tooltip", sticky: false,
+      });
+      m.addTo(map);
+      coolingStopMarkersRef.current.push(m);
+    }
+
+    return () => {
+      coolingStopMarkersRef.current.forEach(m => { try { map.removeLayer(m); } catch { /* stale */ } });
+      coolingStopMarkersRef.current = [];
+    };
+  }, [recommendation?.cooling_stops]);
+
+  // ── Rain layer ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (rainLayerRef.current) {
+      try { map.removeLayer(rainLayerRef.current); } catch { /* stale */ }
+      rainLayerRef.current = null;
+    }
+    if (!rainVisible) return;
+
+    const selRoute = routes.find(r => r.id === selectedRouteId) ?? routes[0];
+    if (!selRoute) return;
+    const evals = selRoute.evaluations;
+    const scoredWithHeat = evals.filter(ev => ev.route_score !== null && ev.heat_data.length > 0);
+    const bestEval = scoredWithHeat.length > 0
+      ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
+      : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
+    const activeEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+      : bestEval;
+    const heatData = activeEval?.heat_data ?? [];
+
+    const group = L.layerGroup();
+    for (const p of heatData) {
+      const prob = p.precipitation_probability;
+      const mm = p.precipitation_mm;
+      if ((prob == null || prob < 5) && (mm == null || mm < 0.1)) continue;
+      const intensity = prob != null ? prob / 100 : Math.min(1, (mm ?? 0) / 5);
+      const blueVal = Math.round(100 + intensity * 155);
+      const color = `rgba(30,${Math.round(80 + intensity * 30)},${blueVal},0.85)`;
+      const size = Math.round(14 + intensity * 14);
+      const label = prob != null ? `${Math.round(prob)}%` : `${(mm ?? 0).toFixed(1)}mm`;
+      const iconHtml = `<div style="width:${size}px;height:${size}px;background:${color};border-radius:50%;border:2px solid rgba(30,80,200,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 5px rgba(30,80,200,0.3);font-size:9px;font-weight:700;color:#fff;line-height:1;">${label}</div>`;
+      // Anchor so rain circle floats above the heat emoji (heat iconAnchor[1]=8, so top of heat is ~8px above point)
+      const m = L.marker([p.lat, p.lon], {
+        icon: L.divIcon({ html: iconHtml, className: "custom-marker", iconSize: [size, size], iconAnchor: [Math.round(size / 2), size + 12] }),
+      });
+      m.addTo(group);
+    }
+    group.addTo(map);
+    rainLayerRef.current = group;
+    return () => {
+      try { map.removeLayer(group); } catch { /* stale */ }
+      rainLayerRef.current = null;
+    };
+  }, [routes, selectedRouteId, selectedHourIdx, departureHours, rainVisible]);
+
+  // ── Wind layer ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (windLayerRef.current) {
+      try { map.removeLayer(windLayerRef.current); } catch { /* stale */ }
+      windLayerRef.current = null;
+    }
+    if (!windVisible) return;
+
+    const selRoute = routes.find(r => r.id === selectedRouteId) ?? routes[0];
+    if (!selRoute) return;
+    const evals = selRoute.evaluations;
+    const scoredWithHeat = evals.filter(ev => ev.route_score !== null && ev.heat_data.length > 0);
+    const bestEval = scoredWithHeat.length > 0
+      ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
+      : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
+    const activeEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+      : bestEval;
+    const heatData = activeEval?.heat_data ?? [];
+
+    const group = L.layerGroup();
+    for (const p of heatData) {
+      if (p.wind_speed_ms == null) continue;
+      const kmh = p.wind_speed_ms * 3.6;
+      const color = kmh >= 30 ? "#1e3a8a" : kmh >= 15 ? "#3b82f6" : "#93c5fd";
+      const label = `${Math.round(kmh)}`;
+      const iconHtml = `<div style="display:flex;flex-direction:column;align-items:center;gap:1px;"><div style="width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:5px solid ${color};"></div><div style="background:${color};color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 4px rgba(30,58,138,0.3);line-height:1.3;">${label}<span style="font-size:8px;opacity:0.85"> km/h</span></div></div>`;
+      // Anchor so wind badge floats below the heat emoji (heat bottom is ~32px below point, so place wind top at ~36px below)
+      const m = L.marker([p.lat, p.lon], {
+        icon: L.divIcon({ html: iconHtml, className: "custom-marker", iconSize: [52, 28], iconAnchor: [26, -36] }),
+      });
+      m.addTo(group);
+    }
+    group.addTo(map);
+    windLayerRef.current = group;
+    return () => {
+      try { map.removeLayer(group); } catch { /* stale */ }
+      windLayerRef.current = null;
+    };
+  }, [routes, selectedRouteId, selectedHourIdx, departureHours, windVisible]);
 
   // ── Handlers ──────────────────────────────────────────────────
   const handleStopSelect = (stop: MapStop) => {
@@ -673,6 +865,9 @@ export function MapView({
     map.flyTo([poi.lat, poi.lon], 14, { duration: 1.0 });
   };
 
+  const handleToggleRain = () => setRainVisible(v => !v);
+  const handleToggleWind = () => setWindVisible(v => !v);
+
   const handleToggleHeatmap = () => {
     if (!mapRef.current) return;
     const map = mapRef.current;
@@ -683,9 +878,6 @@ export function MapView({
         heatLegendRef.current = null;
       }
     } else {
-      const legend = createHeatLegend();
-      legend.addTo(map);
-      heatLegendRef.current = legend;
       if (selectedRouteData) {
         const tempsKnown =
           selectedRouteData.waypoints.length > 1 &&
@@ -780,6 +972,86 @@ export function MapView({
     });
   })();
 
+  // ── AI chat context summary ───────────────────────────────────
+  const routeContextSummary = (() => {
+    const metrics = bestEvalForPoints?.risk?.metrics;
+    const bestDep = departureHours.find(d => d.isBest);
+
+    // Full departure schedule: every hour with temp + risk
+    const departureSchedule = departureHours.length
+      ? "Departure options by hour: " +
+        departureHours.map(d =>
+          `${d.label} → ${d.tempValue}°C, ${d.risk} risk${d.isBest ? " (BEST)" : ""}`
+        ).join("; ") + "."
+      : "";
+
+    // Sample up to 8 evenly-spaced heat waypoints with real km/temp/index
+    const heatSample = (() => {
+      if (allHeatPoints.length === 0) return "";
+      const count = Math.min(8, allHeatPoints.length);
+      const pts = Array.from({ length: count }, (_, i) => {
+        const idx = Math.round((i / Math.max(1, count - 1)) * (allHeatPoints.length - 1));
+        const p = allHeatPoints[idx];
+        const km = p.distance_from_origin_m != null
+          ? `km ${(p.distance_from_origin_m / 1000).toFixed(0)}`
+          : (p.name ?? `waypoint ${idx + 1}`);
+        return `${km}: ${p.temperature.toFixed(0)}°C, heat index ${p.heat_index.toFixed(0)}°C, ${p.risk_level}`;
+      });
+      return "Heat data along route: " + pts.join("; ") + ".";
+    })();
+
+    // All POI stops (name + type + distance if available)
+    const stopsList = _dockPois.length
+      ? "Stops along the route: " +
+        _dockPois.slice(0, 12).map(p => {
+          const dist = p.distance != null
+            ? ` (${p.distance < 1000 ? Math.round(p.distance) + "m" : (p.distance / 1000).toFixed(1) + "km"} from road)`
+            : "";
+          return `${p.name || p.type}${dist}`;
+        }).join(", ") + "."
+      : "";
+
+    const parts: string[] = [
+      `ROUTE ANALYSIS DATA — use these exact numbers in every answer:`,
+      `Route: ${origin} → ${destination}.`,
+      passengerTypes.length
+        ? `Traveling with: ${passengerTypes.join(", ")}. Tailor stop advice accordingly.`
+        : "",
+      selectedRouteData
+        ? `Distance: ${selectedRouteData.distance}. Duration: ${selectedRouteData.duration}.`
+        : "",
+      recommendation
+        ? `AI Decision: ${recommendation.decision}. Reason: ${recommendation.reason}`
+        : "",
+      recommendation?.key_factors?.length
+        ? `Key risk factors: ${recommendation.key_factors.join("; ")}.`
+        : "",
+      recommendation?.safety_tip
+        ? `Safety tip: ${recommendation.safety_tip}`
+        : "",
+      bestDep
+        ? `Best departure: ${bestDep.label} (${bestDep.tempValue}°C, ${bestDep.risk} risk).`
+        : "",
+      metrics
+        ? `Peak conditions: max ${metrics.max_temperature ?? "?"}°C, heat index ${metrics.max_heat_index ?? "?"}°C, humidity ${metrics.max_humidity ?? "?"}%, AQI ${metrics.max_aqi ?? "?"}.`
+        : "",
+      departureSchedule,
+      heatSample,
+      recommendation?.cooling_stops?.length
+        ? "AI cooling stops: " + recommendation.cooling_stops.map(s =>
+            `${s.name} at ${s.distance_km.toFixed(0)} km${s.eta_time ? ", ETA " + fmtTime(s.eta_time) : ""}${s.message ? " — " + s.message : ""}`
+          ).join("; ") + "."
+        : "",
+      recommendation?.alerts?.length
+        ? "Critical alerts: " + recommendation.alerts.map(a =>
+            `${a.message} (km ${a.distance_km?.toFixed(0) ?? "?"}, ${a.temperature?.toFixed(0) ?? "?"}°C)`
+          ).join("; ") + "."
+        : "",
+      stopsList,
+    ];
+    return parts.filter(Boolean).join("\n");
+  })();
+
   // ── Watch-out items ───────────────────────────────────────────
   function alertStyle(riskLevel: string): { bg: string; color: string } {
     const lvl = riskLevel.toLowerCase();
@@ -803,10 +1075,10 @@ export function MapView({
     watchOutItems.push({
       title: a.message,
       body: [
-        a.temperature > 0 && `${a.temperature}°C`,
+        a.temperature > 0 && `${Math.round(a.temperature * 9 / 5 + 32)}°F`,
         a.risk_score > 0 && `Risk score ${a.risk_score}/100`,
         a.distance_km > 0 && `${a.distance_km.toFixed(0)} km from start`,
-        a.eta_time && `ETA ${a.eta_time}`,
+        a.eta_time && `ETA ${fmtTime(a.eta_time)}`,
       ].filter(Boolean).join(" · "),
       ...alertStyle(a.risk_level),
     });
@@ -1037,21 +1309,24 @@ export function MapView({
 
         {/* Tab navigation */}
         <nav style={{ display: "flex", gap: 3, padding: 4, background: "#F0EDE8", borderRadius: 12, flexShrink: 0 }}>
-          {([ ["plan", "Plan"], ["results", "Results"], ["detail", "Along the route"] ] as const).map(([tab, label]) => (
+          {([ ["plan", "Plan"], ["results", "Results"], ["detail", "Along the route"], ["ai", "🔥 AI Report"] ] as const).map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => {
                 if (tab === "plan") { onBack(); return; }
-                setActiveTab(tab as "results" | "detail");
+                setActiveTab(tab as "results" | "detail" | "ai");
                 if (tab === "results") setTimeout(() => (mapRef.current as unknown as { invalidateSize(): void } | null)?.invalidateSize(), 50);
               }}
               style={{
                 padding: "7px 14px", border: "none", borderRadius: 9, cursor: "pointer",
                 fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600,
-                background: activeTab === tab ? "#fff" : "transparent",
-                color: activeTab === tab ? "#1C1917" : "#6B6560",
+                background: activeTab === tab
+                  ? (tab === "ai" ? "linear-gradient(100deg,#F97316,#EA580C)" : "#fff")
+                  : "transparent",
+                color: activeTab === tab ? (tab === "ai" ? "#fff" : "#1C1917") : "#6B6560",
                 boxShadow: activeTab === tab ? "0 1px 3px rgba(28,25,23,0.10)" : "none",
                 transition: "all 120ms",
+                whiteSpace: "nowrap",
               }}
             >
               {label}
@@ -1446,14 +1721,64 @@ export function MapView({
                 )}
               </section>
 
+              {/* AI Report teaser — directs to AI tab */}
+              {recommendation && (
+                <button
+                  onClick={() => setActiveTab("ai")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: 16,
+                    border: "1.5px solid rgba(249,115,22,0.35)",
+                    background: "rgba(249,115,22,0.05)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    marginBottom: 4,
+                  }}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: "linear-gradient(100deg,#F97316,#EA580C)",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <Sparkles style={{ width: 16, height: 16, color: "#fff" }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 13, color: "var(--color-accent)" }}>
+                      AI Heat Report ready
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {recommendation.headline}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, color: "var(--color-accent)" }}>→</span>
+                </button>
+              )}
+
               {/* 3 ── Route Options */}
               {routeOptions.length > 0 && (
                 <section>
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-                    <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em", margin: 0, color: "#1C1917" }}>
-                      Route options
-                    </h2>
-                    <span style={{ fontSize: 13, color: "#6B6560" }}>Scored for a {departureLabel} departure</span>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                      <h2 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 20, letterSpacing: "-0.02em", margin: 0, color: "#1C1917" }}>
+                        Route options
+                      </h2>
+                      <span style={{ fontSize: 13, color: "#6B6560" }}>Scored for a {departureLabel} departure</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" as const }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "rgba(249,115,22,0.08)", color: "#C2410C", border: "1px solid rgba(249,115,22,0.18)" }}>
+                        {weatherWeightPct >= 70 ? "Comfort priority" : weatherWeightPct <= 30 ? "Speed priority" : "Balanced"}
+                        {" · "}{weatherWeightPct}% comfort
+                      </span>
+                      {trafficAware && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "rgba(14,164,114,0.08)", color: "#0EA472", border: "1px solid rgba(14,164,114,0.18)" }}>
+                          Traffic-aware
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div
                     style={{
@@ -1687,6 +2012,23 @@ export function MapView({
                         Stops along the way
                       </span>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button
+                          onClick={() => setShowJourneyVisualizer(true)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 5,
+                            padding: "4px 11px", borderRadius: 999, border: "none",
+                            background: "linear-gradient(135deg, #1C1917, #3C3533)",
+                            color: "#fff", fontSize: 11, fontWeight: 700,
+                            cursor: "pointer", fontFamily: "var(--font-heading)",
+                            letterSpacing: "-0.01em",
+                            boxShadow: "0 2px 8px rgba(28,25,23,0.22)",
+                          }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #F97316, #EA580C)"; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #1C1917, #3C3533)"; }}
+                        >
+                          <Sparkles style={{ width: 11, height: 11 }} />
+                          Journey Plan
+                        </button>
                         <span style={{ fontSize: 10, color: "#9A948E" }}>tap to show on map</span>
                         <span style={{ padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: "rgba(249,115,22,0.08)", color: "#F97316", border: "1px solid rgba(249,115,22,0.18)" }}>
                           {allPois.length}
@@ -1701,7 +2043,7 @@ export function MapView({
                           <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 11px", background: i % 2 === 0 ? "rgba(14,164,114,0.05)" : "#FAFFFE", borderTop: i > 0 ? "1px solid rgba(14,164,114,0.10)" : undefined }}>
                             <span style={{ fontSize: 14, flexShrink: 0 }}>🧊</span>
                             <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "#1C1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stop.name}</span>
-                            {stop.eta_time && <span style={{ fontSize: 10, color: "#6B6560", flexShrink: 0 }}>{stop.eta_time}</span>}
+                            {stop.eta_time && <span style={{ fontSize: 10, color: "#6B6560", flexShrink: 0 }}>{fmtTime(stop.eta_time)}</span>}
                             {stop.distance_km > 0 && <span style={{ fontSize: 10, color: "#9A948E", flexShrink: 0 }}>{stop.distance_km.toFixed(0)} km</span>}
                           </div>
                         ))}
@@ -1797,14 +2139,24 @@ export function MapView({
                     Heat
                   </button>
                   <button
-                    style={{ padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 500, border: "none", cursor: "default", background: "transparent", color: "#9A948E" }}
-                    title="Rain layer, coming soon"
+                    onClick={handleToggleRain}
+                    style={{
+                      padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
+                      background: rainVisible ? "#3b82f6" : "transparent",
+                      color: rainVisible ? "#fff" : "#6B6560",
+                      transition: "all 140ms",
+                    }}
                   >
                     Rain
                   </button>
                   <button
-                    style={{ padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 500, border: "none", cursor: "default", background: "transparent", color: "#9A948E" }}
-                    title="Wind layer, coming soon"
+                    onClick={handleToggleWind}
+                    style={{
+                      padding: "5px 11px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer",
+                      background: windVisible ? "#1e3a8a" : "transparent",
+                      color: windVisible ? "#fff" : "#6B6560",
+                      transition: "all 140ms",
+                    }}
                   >
                     Wind
                   </button>
@@ -1857,6 +2209,7 @@ export function MapView({
                     <Crosshair style={{ width: 13, height: 13 }} />
                   </button>
                 </div>
+
 
 
                 {/* Exposure legend (bottom-left) */}
@@ -2109,19 +2462,62 @@ export function MapView({
           </div>
       </main>
 
+        {/* ── AI Report tab ────────────────────────────────────── */}
+        {activeTab === "ai" && (
+          <HeatIntelTab
+            heatPoints={allHeatPoints}
+            recommendation={recommendation ?? null}
+            departureHours={departureHours}
+            shownDepartureTime={bestEvalForPoints?.departure_time ?? null}
+            riskScore={bestEvalForPoints?.risk?.score ?? null}
+            origin={origin}
+            destination={destination}
+            routeName={selectedRouteOption?.name ?? ""}
+            routeDistance={selectedRouteOption?.distance ?? ""}
+            routeDuration={selectedRouteOption?.duration ?? ""}
+            riskLevel={riskLevel}
+            riskMetrics={riskMetrics ?? null}
+            unitF={unitF}
+            weatherWeightPct={weatherWeightPct}
+          />
+        )}
+
       {/* FloatingMapDock kept hidden — handleStopSelect drives stop markers */}
       <div style={{ display: "none" }}>
         <FloatingMapDock
-          onCameraSelect={(id) => console.log("Camera selected:", id)}
           onStopSelect={handleStopSelect}
           onDepartureHover={setDepartureHover}
           hours={departureHours}
           hoursLoading={isSubmitting}
           windowLabel={`NEXT ${departureRangeHours} HRS · ${stepMinutes} MIN STEPS`}
-          cameras={selectedRouteData?.cameras ?? []}
           pois={_dockPois}
+          coolingStops={recommendation?.cooling_stops ?? []}
         />
       </div>
+
+      {/* AI chat — results mode with full route context */}
+      <ChatWidget
+        mode="results"
+        routeContext={origin && destination ? { origin, destination, contextSummary: routeContextSummary } : undefined}
+        onAutoSubmit={() => onBack()}
+      />
+
+      {/* Animated journey visualizer */}
+      <JourneyErrorBoundary onClose={() => setShowJourneyVisualizer(false)}>
+        <StopJourneyVisualizer
+          open={showJourneyVisualizer}
+          origin={origin}
+          destination={destination}
+          routeDistance={selectedRouteData?.distance ?? "0 km"}
+          routeDuration={selectedRouteData?.duration ?? "0 min"}
+          pois={_dockPois}
+          coolingStops={recommendation?.cooling_stops ?? []}
+          passengerTypes={passengerTypes}
+          routeContext={routeContextSummary}
+          decision={recommendation?.decision}
+          onClose={() => setShowJourneyVisualizer(false)}
+        />
+      </JourneyErrorBoundary>
     </div>
   );
 }

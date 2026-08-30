@@ -129,7 +129,6 @@ class RouteAnalysisService:
                         else None
                     ),
                     "poi_count": len(route.get("pois", [])),
-                    "camera_count": len(route.get("cameras", [])),
                 }
             )
 

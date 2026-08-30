@@ -185,16 +185,19 @@ FORBIDDEN BEHAVIORS:
 - Do not invent highways or locations not in context
 
 DECISION LOGIC (TRAVEL TIMING):
+0. If departure_comparison data is available, identify the departure_time with the lowest
+   route_score — that is the algorithm's recommended departure. Use this as your primary
+   reference for best_departure_times. NOTE: forecast[] entries are waypoint ETAs for one
+   departure, NOT candidate departure times — never extract departure suggestions from forecast[].
 1. Check the current risk level for the selected route
-2. If current risk level is "LOW":
+2. If current risk level is "LOW" or "MODERATE":
    - Set good_to_go = true
-   - Current time is safe to travel
-3. If current risk level is NOT "LOW" (MODERATE, HIGH, VERY_HIGH, EXTREME):
+   - Current conditions are acceptable for travel
+3. If current risk level is "HIGH", "VERY_HIGH", or "EXTREME":
    - Set good_to_go = false
-   - Analyze the 12-hour forecast data
-   - Find all forecast entries where risk level is "LOW"
-   - List those times as best_departure_times
-   - If no LOW risk times in 12 hours, list the lowest risk times available
+   - Use departure_comparison to find entries with LOW or MODERATE risk_level and lower route_score
+   - List those departure_times as best_departure_times (format as readable times like "8:00 AM")
+   - If no better options exist, list the departure_time with the lowest route_score
 
 RISK LEVELS (from lowest to highest): LOW, MODERATE, HIGH, VERY_HIGH, EXTREME
 
@@ -300,7 +303,7 @@ REQUIREMENTS:
 - All numerical values must come from input context
 - Be honest about limitations and missing data
 - Keep language simple and direct
-- Always include good_to_go field (true only if current risk is LOW)
+- Always include good_to_go field (true if current risk is LOW or MODERATE; false for HIGH/VERY_HIGH/EXTREME)
 """
 
 

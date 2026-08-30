@@ -41,6 +41,8 @@ interface PlanningFormProps {
   onWeatherWeightChange: (v: number) => void;
   trafficAware: boolean;
   onTrafficAwareChange: (v: boolean) => void;
+  passengerTypes: string[];
+  onPassengerTypesChange: (v: string[]) => void;
   isSubmitting: boolean;
   showSuccess?: boolean;
   error: string | null;
@@ -76,6 +78,8 @@ export function PlanningForm({
   onWeatherWeightChange,
   trafficAware,
   onTrafficAwareChange,
+  passengerTypes,
+  onPassengerTypesChange,
   isSubmitting,
   showSuccess = false,
   error,
@@ -281,7 +285,7 @@ export function PlanningForm({
               maxWidth: 520,
             }}
           >
-            Enter a trip and ThermoRoute forecasts the weather at every point along the way, timed
+            Enter a trip and ThermoDispatch forecasts the weather at every point along the way, timed
             to when you will actually arrive there. Then it tells you the departure hour and route
             that keep you most comfortable.
           </p>
@@ -339,7 +343,7 @@ export function PlanningForm({
                   background: "rgba(255,255,255,0.97)",
                   backdropFilter: "blur(8px)",
                   WebkitBackdropFilter: "blur(8px)",
-                  zIndex: 10,
+                  zIndex: 100,
                 }}
               >
                 <MascotCharacter state="thinking" size={80} />
@@ -383,6 +387,7 @@ export function PlanningForm({
             )}
 
             {/* Success overlay */}
+            {/* Success overlay */}
             {showSuccess && (
               <div
                 style={{
@@ -397,7 +402,7 @@ export function PlanningForm({
                   background: "rgba(255,255,255,0.97)",
                   backdropFilter: "blur(8px)",
                   WebkitBackdropFilter: "blur(8px)",
-                  zIndex: 10,
+                  zIndex: 100,
                 }}
               >
                 <MascotCharacter state="happy" size={80} />
@@ -647,6 +652,49 @@ export function PlanningForm({
                   }}
                 />
               </button>
+            </div>
+
+            {/* Passengers */}
+            <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid #EBE8E3" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: "#78716C", display: "block", marginBottom: 12 }}>
+                Traveling with
+              </span>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+                {([
+                  { id: "kids",    emoji: "👶", label: "Kids"    },
+                  { id: "elderly", emoji: "👴", label: "Elderly" },
+                  { id: "pets",    emoji: "🐾", label: "Pets"    },
+                ] as const).map(opt => {
+                  const active = passengerTypes.includes(opt.id);
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => onPassengerTypesChange(
+                        active ? passengerTypes.filter(t => t !== opt.id) : [...passengerTypes, opt.id]
+                      )}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 7,
+                        padding: "8px 16px", borderRadius: 10,
+                        border: `1.5px solid ${active ? "#F97316" : "#E8E4DF"}`,
+                        background: active ? "rgba(249,115,22,0.08)" : "#FAF8F2",
+                        color: active ? "#EA580C" : "#57534E",
+                        fontSize: 14, fontWeight: 600,
+                        cursor: isSubmitting ? "not-allowed" : "pointer",
+                        transition: "all 150ms",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      <span style={{ fontSize: 18 }}>{opt.emoji}</span>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={{ fontSize: 11.5, color: "#9A948E", margin: "9px 0 0" }}>
+                We'll tailor rest stops and suggestions to your passengers
+              </p>
             </div>
 
             {/* CTA row */}
