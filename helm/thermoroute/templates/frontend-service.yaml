@@ -3,12 +3,12 @@ kind: Service
 metadata:
   name: thermoroute-frontend
   namespace: {{ .Values.namespace }}
-
 spec:
   type: ClusterIP
   selector:
     app: thermoroute-frontend
   ports:
-    - protocol: TCP
-      port: 3000
+    - name: http
+      protocol: TCP
+      port: 80
       targetPort: {{ .Values.frontend.containerPort }}
