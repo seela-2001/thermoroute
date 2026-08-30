@@ -1,0 +1,61 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REGISTRY: 012389889589.dkr.ecr.eu-north-1.amazonaws.com
+  ALB_URL: http://thermoroute-alb-685820235.eu-north-1.elb.amazonaws.com
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        run: |
+          docker build -t thermoroute-backend -f backend/Dockerfile .
+          docker tag thermoroute-backend:latest $ECR_REGISTRY/thermoroute-backend:latest
+          docker push $ECR_REGISTRY/thermoroute-backend:latest
+
+      - name: Build and push frontend image
+        run: |
+          docker build \
+            --build-arg VITE_API_BASE_URL=${{ env.ALB_URL }}/api \
+            -t thermoroute-frontend \
+            ./frontend
+          docker tag thermoroute-frontend:latest $ECR_REGISTRY/thermoroute-frontend:latest
+          docker push $ECR_REGISTRY/thermoroute-frontend:latest
+
+      - name: Deploy backend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster thermoroute \
+            --service thermoroute-backend \
+            --force-new-deployment \
+            --region eu-north-1 2>/dev/null || echo "Service not yet created - skipping redeploy"
+
+      - name: Deploy frontend to ECS
+        run: |
+          aws ecs update-service \
+            --cluster thermoroute \
+            --service thermoroute-frontend \
+            --force-new-deployment \
+            --region eu-north-1 2>/dev/null || echo "Service not yet created - skipping redeploy"
