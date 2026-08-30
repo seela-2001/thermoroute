@@ -2,30 +2,31 @@
 
 
 apiVersion: networking.k8s.io/v1
-kind: Ingress 
+kind: Ingress
 metadata:
   name: thermoroute-ingress
   namespace: {{ .Values.namespace }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
+  ingressClassName: alb
   rules:
-    - host: {{ .Values.ingress.host }}
-      http:
+    - http:
         paths:
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: thermoroute-backend 
-                port: 
+                name: thermoroute-backend
+                port:
                   number: 8000
-
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: thermoroute-frontend 
-                port: 
+                name: thermoroute-frontend
+                port:
                   number: 3000
 
 {{- end }}
