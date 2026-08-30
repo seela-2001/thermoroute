@@ -1,7 +1,7 @@
 variable "aws_region" {
-    description = "aws region"
-    type        = string
-    default     = "eu-north-1"
+  description = "AWS region"
+  type        = string
+  default     = "eu-north-1"
 }
 
 variable "project_name" {
@@ -56,11 +56,32 @@ variable "node_min_size" {
 variable "node_max_size" {
   description = "Maximum number of nodes"
   type        = number
-  default     = 4
+  default     = 3
 }
 
 variable "node_desired_size" {
   description = "Desired number of nodes"
   type        = number
-  default     = 3
+  default     = 2
+}
+
+variable "cluster_name" {
+  description = "EKS cluster name"
+  type        = string
+  default     = "thermoroute-dev"
+}
+
+variable "eks_oidc_provider_arn" {
+  description = "EKS OIDC provider ARN"
+  type        = string
+}
+
+variable "eks_oidc_provider_url" {
+  description = "EKS OIDC provider URL"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC ID"
+  type        = string
 }

@@ -6,7 +6,6 @@ metadata:
 
 spec:
   serviceName: thermoroute-postgres
-
   replicas: 1
 
   selector:
@@ -23,7 +22,10 @@ spec:
         - name: postgres
           image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
           ports:
-            - containerPort: 5432
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+
           env:
             - name: POSTGRES_DB
               valueFrom:
@@ -43,6 +45,9 @@ spec:
                   name: thermoroute-secrets
                   key: POSTGRES_PASSWORD
 
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
@@ -54,7 +59,8 @@ spec:
       spec:
         accessModes:
           - ReadWriteOnce
+        storageClassName: gp2
 
         resources:
           requests:
-            storage: {{ .Values.postgres.persistance.size }}
+            storage: {{ .Values.postgres.persistence.size }}

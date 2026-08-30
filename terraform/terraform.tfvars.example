@@ -20,3 +20,11 @@ node_instance_types = [
 node_min_size     = 2
 node_max_size     = 4
 node_desired_size = 3
+
+cluster_name = "thermoroute-dev"
+
+eks_oidc_provider_arn = "arn:aws:iam::012389889589:oidc-provider/oidc.eks.eu-north-1.amazonaws.com/id/BBDF54BDF95A0F5A3654D3F8704CE86D"
+
+eks_oidc_provider_url = "https://oidc.eks.eu-north-1.amazonaws.com/id/BBDF54BDF95A0F5A3654D3F8704CE86D"
+
+vpc_id = "vpc-047231d5f584f1084"

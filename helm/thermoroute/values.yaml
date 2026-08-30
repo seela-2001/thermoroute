@@ -49,13 +49,13 @@ postgres:
   username: thermoroute
   service:
     port: 5432
-  persistance:
+  persistence:
     enabled: true
     size: 5Gi
 
 ingress:
   enabled: true
-  className: nginx
+  className: alb
   host: thermoroute.local
 
 networkPolicy:
