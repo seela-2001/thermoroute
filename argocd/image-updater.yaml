@@ -1,4 +1,4 @@
-apiVersion: argocd-image-updater.argoproj.io.v1alpha1 
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
 kind: ImageUpdater
 metadata:
   name: thermoroute-image-updater
@@ -15,20 +15,19 @@ spec:
     - namePattern: thermoroute-application
       images:
         - alias: backend
-          imageName: sohila12/thermoroute-backend:v1.0.44
+          imageName: sohila12/thermoroute-backend:v1.0.68
           commonUpdateSettings:
             updateStrategy: semver
-            manifestTargets:
-              helm: 
-                nama: backend.image.repository
-                tag: backend.image.tag
+          manifestTargets:
+            helm: 
+              name: backend.image.repository
+              tag: backend.image.tag
 
         - alias: frontend
-          imageName: sohila12/thermoroute-frontend:v
+          imageName: sohila12/thermoroute-frontend:v1.0.48
           commonUpdateSettings:
-            UpdateStrategy: semver
-            manifestTargets:
-              helm: 
-                name: frontend.image.repository
-                tag: frontend.image.tag
-
+            updateStrategy: semver
+          manifestTargets:
+            helm: 
+              name: frontend.image.repository
+              tag: frontend.image.tag

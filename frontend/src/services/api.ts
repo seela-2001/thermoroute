@@ -70,6 +70,7 @@ export interface AnalyzePoi {
 
 export interface AnalyzeEvaluation {
   departure_time: string;
+  duration_min?: number | null;
   route_score: number | null;
   weather_score: number | null;
   time_score: number | null;
@@ -211,7 +212,7 @@ export const routesApi = {
   },
 
   chatWithAI: async (message: string, history: ChatMessage[], mode?: string): Promise<ChatResponse> => {
-    const response = await api.post('/routes/ai/chat/', { message, history, mode }, { timeout: 30000 });
+    const response = await api.post('/routes/ai/chat/', { message, history, mode }, { timeout: 60000 });
     return response.data;
   },
 };

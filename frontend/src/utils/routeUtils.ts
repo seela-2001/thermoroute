@@ -9,6 +9,14 @@ import type {
 import { decimateGeometry, riskFromTemp } from "@/services/routing";
 import type { DepartureHourInfo } from "@/components/FloatingMapDock";
 
+export function fmtDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h} hr`;
+  return `${h} hr ${m} min`;
+}
+
 export interface Waypoint {
   lat: number;
   lng: number;
@@ -132,7 +140,7 @@ export function mapBackendRoute(route: AnalyzeRoute, origin: string, destination
     name: route.name || "",
     via: route.name || "",
     distance: `${route.distance_km.toFixed(1)} km`,
-    duration: `${Math.round(route.duration_min)} min`,
+    duration: fmtDuration(Math.round(route.duration_min)),
     temperature: avgTemp !== null ? `${Math.round(avgTemp * 10) / 10}°C` : "--",
     heatRisk:
       evaluation?.risk?.level
@@ -165,6 +173,39 @@ function formatDepartureLabel(iso: string): string {
   const hour12 = d.getHours() % 12 || 12;
   const ampm = d.getHours() >= 12 ? "PM" : "AM";
   return `${hour12}${ampm}`;
+}
+
+/** Build departure hours for a single route using only that route's own evaluation data.
+ *  isBest = evaluation with the lowest route_score on this route. */
+export function buildRouteHours(route: RouteData | undefined): DepartureHourInfo[] {
+  if (!route) return [];
+  const hours = route.evaluations
+    .map((ev): DepartureHourInfo | null => {
+      const temp = averageHeatTemp(ev.heat_data);
+      if (temp === null) return null;
+      const risk = ev.risk?.level
+        ? backendLevelToDockRisk(ev.risk.level)
+        : temp >= 40 ? "extreme" : temp >= 37 ? "very_high" : temp >= 33 ? "high" : temp >= 28 ? "moderate" : "low";
+      return {
+        label: formatDepartureLabel(ev.departure_time),
+        tempValue: Math.round(temp),
+        risk,
+        routeScore: ev.route_score ?? null,
+        weatherScore: ev.weather_score ?? null,
+        isBest: false,
+        departureTime: ev.departure_time,
+      };
+    })
+    .filter((h): h is DepartureHourInfo => h !== null);
+
+  // Mark the hour with the lowest routeScore as best
+  const scored = hours.filter(h => h.routeScore != null);
+  if (scored.length > 0) {
+    const bestScore = Math.min(...scored.map(h => h.routeScore!));
+    const bestIdx = hours.findIndex(h => h.routeScore === bestScore);
+    if (bestIdx >= 0) hours[bestIdx] = { ...hours[bestIdx], isBest: true };
+  }
+  return hours;
 }
 
 export function buildDepartureHours(

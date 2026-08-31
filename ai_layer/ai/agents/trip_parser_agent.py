@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -45,9 +46,9 @@ jurisdiction: use destination US state 2-letter code when known, else null."""
 class TripParserAgent:
     """Parses natural language trip intent into structured form fields."""
 
-    def __init__(self, api_key: str, model: str = "minimax/minimax-m3:free"):
+    def __init__(self, api_key: str, model: str | None = None):
         self._api_key = api_key
-        self._model = model
+        self._model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
         self._provider: OpenRouterProvider | None = None
 
     def _provider_instance(self) -> OpenRouterProvider:

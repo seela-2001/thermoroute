@@ -35,7 +35,7 @@ Traditional routing systems optimize for distance and time. They don't account f
 | Backend | Django 6.1, Django REST Framework |
 | Python runtime | Python 3.14+, uv |
 | AI package | heatops-ai (local editable package, `ai_layer/`) |
-| LLM provider | OpenRouter (`minimax/minimax-m3:free` default) |
+| LLM provider | OpenRouter (`openai/gpt-4o-mini` default) |
 | Database | PostgreSQL (configured; analysis pipeline is stateless) |
 | Routing | OSRM public server |
 | Geocoding / POI | Geoapify |
@@ -112,14 +112,13 @@ FORTYGUARD_API_KEY=your-fortyguard-key
 FORTYGUARD_BASE_URL=https://api.fortyguard.com/v1
 FORTYGUARD_TIMEOUT=100
 TOMTOM_API_KEY=your-tomtom-key
-ROAD_511=your-road511-key
 ```
 
 **`ai_layer/.env`** — copy from `ai_layer/.env.example`:
 
 ```env
 OPENROUTER_API_KEY=sk-or-v1-your-key
-OPENROUTER_MODEL=minimax/minimax-m3:free
+OPENROUTER_MODEL=openai/gpt-4o-mini
 OPENROUTER_TEMPERATURE=0.3
 OPENROUTER_MAX_TOKENS=1000
 OPENROUTER_TIMEOUT=30

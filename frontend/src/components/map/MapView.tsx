@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Component } from "react";
+import { useState, useEffect, useRef, useMemo, Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 
 class JourneyErrorBoundary extends Component<{ children: ReactNode; onClose: () => void }, { error: string | null }> {
@@ -47,6 +47,7 @@ import {
 
 } from "@/components/HeatGradientLayer";
 import type { RouteData } from "@/utils/routeUtils";
+import { fmtDuration, buildRouteHours } from "@/utils/routeUtils";
 import type { AnalyzePoi, CriticalAlert, CoolingStop } from "@/services/api";
 import L from "leaflet";
 import type {
@@ -105,35 +106,22 @@ function riskLabelFromTemp(t: number): string {
   return "Extreme";
 }
 
-function comfortScoreFromRisk(risk: string, temp: number): number {
-  // Normalize: "medium" (RouteData) → "moderate", "very_high" → "extreme"
-  const lvl = risk.toLowerCase()
-    .replace("very_high", "extreme")
-    .replace("medium", "moderate");
-
-  // temp ≤ 0 means unavailable (parseTemp("--") = 0) — return mid-range per level
+// Use real backend route_score (0–100, lower=better risk) when available.
+// routeScore is the blended weather+time score; comfort = 100 - routeScore.
+// Falls back to a risk-level estimate when the backend score is absent.
+function comfortScore(hour: { routeScore?: number | null; risk: string; tempValue: number }): number {
+  if (hour.routeScore != null) return Math.max(0, Math.min(100, Math.round(100 - hour.routeScore)));
+  // Fallback estimate from risk level + temperature
+  const lvl = hour.risk.toLowerCase().replace("very_high", "extreme").replace("medium", "moderate");
+  const temp = hour.tempValue;
   if (temp <= 0) {
-    switch (lvl) {
-      case "low":      return 84;
-      case "moderate": return 62;
-      case "high":     return 40;
-      default:         return 18;
-    }
+    switch (lvl) { case "low": return 84; case "moderate": return 62; case "high": return 40; default: return 18; }
   }
-
   switch (lvl) {
-    case "low":
-      // 92 at 20°C, floors at 72 around 60°C
-      return Math.max(72, Math.min(98, Math.round(92 - Math.max(0, temp - 20) * 0.5)));
-    case "moderate":
-      // 70 at 28°C, floors at 50 around 61°C
-      return Math.max(50, Math.min(72, Math.round(70 - Math.max(0, temp - 28) * 0.6)));
-    case "high":
-      // 50 at 28°C, descends ~1.2/°C, floors at 28 around 47°C — avoids flat-lining at 32°C
-      return Math.max(28, Math.min(50, Math.round(50 - Math.max(0, temp - 28) * 1.2)));
-    default:
-      // extreme / very_high: 28 at 35°C, floors at 8 around 60°C
-      return Math.max(8, Math.min(28, Math.round(28 - Math.max(0, temp - 35) * 0.8)));
+    case "low":      return Math.max(72, Math.min(98, Math.round(92 - Math.max(0, temp - 20) * 0.5)));
+    case "moderate": return Math.max(50, Math.min(72, Math.round(70 - Math.max(0, temp - 28) * 0.6)));
+    case "high":     return Math.max(28, Math.min(50, Math.round(50 - Math.max(0, temp - 28) * 1.2)));
+    default:         return Math.max(8,  Math.min(28, Math.round(28 - Math.max(0, temp - 35) * 0.8)));
   }
 }
 
@@ -150,7 +138,7 @@ function parseLabelToHours(label: string): number | null {
 function addMinutesToLabel(label: string, minutes: number): string {
   const h = parseLabelToHours(label);
   if (h === null) return "--";
-  const totalMins = h * 60 + minutes;
+  const totalMins = h * 60 + Math.round(minutes);
   const hh = Math.floor(totalMins / 60) % 24;
   const mm = totalMins % 60;
   const hour12 = hh % 12 || 12;
@@ -415,6 +403,18 @@ export function MapView({
 
   const selectedRouteData = routes.find((r) => r.id === selectedRouteId) ?? routes[0];
 
+  // Departure hours for the currently selected route — recalculated when route changes
+  const activeRouteHours = useMemo(
+    () => buildRouteHours(selectedRouteData),
+    [selectedRouteData]
+  );
+
+  // Reset selected hour when the route changes so stale index doesn't carry over
+  useEffect(() => {
+    setSelectedHourIdx(null);
+  }, [selectedRouteId]);
+
+  // Best departure card is always pinned to the overall recommended route's best hour (prop)
   const bestDeparture: DepartureHourInfo | null =
     departureHours.find((h) => h.isBest) ??
     (departureHours.length > 0
@@ -548,8 +548,8 @@ export function MapView({
       ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
       : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
 
-    const activeEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
-      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+    const activeEval = selectedHourIdx !== null && activeRouteHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === activeRouteHours[selectedHourIdx]!.departureTime) ?? bestEval)
       : bestEval;
 
     const heatData = activeEval?.heat_data ?? [];
@@ -604,7 +604,7 @@ export function MapView({
       try { map.removeLayer(group); } catch { /* stale */ }
       deptGradientRef.current = null;
     };
-  }, [routes, selectedRouteId, selectedHourIdx, departureHours]);
+  }, [routes, selectedRouteId, selectedHourIdx, activeRouteHours]);
 
   // ── Heat emoji markers (re-render on departure change) ────────────
   useEffect(() => {
@@ -623,8 +623,8 @@ export function MapView({
       : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
 
     // Use selected departure's eval when one is picked, else best
-    const activeEvalForEmoji = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
-      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+    const activeEvalForEmoji = selectedHourIdx !== null && activeRouteHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === activeRouteHours[selectedHourIdx]!.departureTime) ?? bestEval)
       : bestEval;
 
     for (const p of (activeEvalForEmoji?.heat_data ?? [])) {
@@ -661,7 +661,7 @@ export function MapView({
       heatEmojiMarkersRef.current.forEach((m) => { try { map.removeLayer(m); } catch { /* stale */ } });
       heatEmojiMarkersRef.current = [];
     };
-  }, [routes, selectedRouteId, selectedHourIdx, departureHours, unitF]);
+  }, [routes, selectedRouteId, selectedHourIdx, activeRouteHours, unitF]);
 
   // ── Heat glow ─────────────────────────────────────────────────
   useEffect(() => {
@@ -742,8 +742,8 @@ export function MapView({
     const bestEval = scoredWithHeat.length > 0
       ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
       : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
-    const activeEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
-      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+    const activeEval = selectedHourIdx !== null && activeRouteHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === activeRouteHours[selectedHourIdx]!.departureTime) ?? bestEval)
       : bestEval;
     const heatData = activeEval?.heat_data ?? [];
 
@@ -770,7 +770,7 @@ export function MapView({
       try { map.removeLayer(group); } catch { /* stale */ }
       rainLayerRef.current = null;
     };
-  }, [routes, selectedRouteId, selectedHourIdx, departureHours, rainVisible]);
+  }, [routes, selectedRouteId, selectedHourIdx, activeRouteHours, rainVisible]);
 
   // ── Wind layer ────────────────────────────────────────────────
   useEffect(() => {
@@ -789,8 +789,8 @@ export function MapView({
     const bestEval = scoredWithHeat.length > 0
       ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
       : (evals.find(ev => ev.heat_data.length > 0) ?? evals[0] ?? null);
-    const activeEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
-      ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? bestEval)
+    const activeEval = selectedHourIdx !== null && activeRouteHours[selectedHourIdx]?.departureTime
+      ? (evals.find(ev => ev.departure_time === activeRouteHours[selectedHourIdx]!.departureTime) ?? bestEval)
       : bestEval;
     const heatData = activeEval?.heat_data ?? [];
 
@@ -813,7 +813,7 @@ export function MapView({
       try { map.removeLayer(group); } catch { /* stale */ }
       windLayerRef.current = null;
     };
-  }, [routes, selectedRouteId, selectedHourIdx, departureHours, windVisible]);
+  }, [routes, selectedRouteId, selectedHourIdx, activeRouteHours, windVisible]);
 
   // ── Handlers ──────────────────────────────────────────────────
   const handleStopSelect = (stop: MapStop) => {
@@ -958,8 +958,8 @@ export function MapView({
     ? scoredWithHeat.reduce((a, b) => (a.route_score ?? Infinity) <= (b.route_score ?? Infinity) ? a : b)
     : (evals.find(ev => (ev.heat_data?.length ?? 0) > 0) ?? evals[0] ?? null);
   // When user taps a departure bar, use that hour's evaluation
-  const selectedHourEval = selectedHourIdx !== null && departureHours[selectedHourIdx]?.departureTime
-    ? (evals.find(ev => ev.departure_time === departureHours[selectedHourIdx]!.departureTime) ?? null)
+  const selectedHourEval = selectedHourIdx !== null && activeRouteHours[selectedHourIdx]?.departureTime
+    ? (evals.find(ev => ev.departure_time === activeRouteHours[selectedHourIdx]!.departureTime) ?? null)
     : null;
   const bestEvalForPoints = selectedHourEval ?? defaultBestEval;
   const allHeatPoints = bestEvalForPoints?.heat_data ?? [];
@@ -975,15 +975,18 @@ export function MapView({
   // ── AI chat context summary ───────────────────────────────────
   const routeContextSummary = (() => {
     const metrics = bestEvalForPoints?.risk?.metrics;
-    const bestDep = departureHours.find(d => d.isBest);
+    const bestDep = activeRouteHours.find(d => d.isBest);
 
-    // Full departure schedule: every hour with temp + risk
-    const departureSchedule = departureHours.length
-      ? "Departure options by hour: " +
-        departureHours.map(d =>
-          `${d.label} → ${d.tempValue}°C, ${d.risk} risk${d.isBest ? " (BEST)" : ""}`
-        ).join("; ") + "."
-      : "";
+    // Full departure schedule: every hour with temp + risk + comfort score
+    const availableLabels = activeRouteHours.map(d => d.label);
+    const departureSchedule = activeRouteHours.length
+      ? `AVAILABLE departure hours (ONLY these times were analyzed — no data exists for any other time): ${availableLabels.join(", ")}.\n` +
+        "Departure details: " +
+        activeRouteHours.map(d =>
+          `${d.label} → ${d.tempValue}°C, ${d.risk} risk, comfort ${comfortScore(d)}/100${d.isBest ? " (BEST)" : ""}`
+        ).join("; ") + ".\n" +
+        "RULE: If the user asks about a departure time NOT in the list above, explicitly say that time was not analyzed and is not available — do not estimate or guess."
+      : "No departure time data available.";
 
     // Sample up to 8 evenly-spaced heat waypoints with real km/temp/index
     const heatSample = (() => {
@@ -1030,7 +1033,7 @@ export function MapView({
         ? `Safety tip: ${recommendation.safety_tip}`
         : "",
       bestDep
-        ? `Best departure: ${bestDep.label} (${bestDep.tempValue}°C, ${bestDep.risk} risk).`
+        ? `Best departure: ${bestDep.label} (${bestDep.tempValue}°C, ${bestDep.risk} risk, comfort score ${comfortScore(bestDep)}/100).`
         : "",
       metrics
         ? `Peak conditions: max ${metrics.max_temperature ?? "?"}°C, heat index ${metrics.max_heat_index ?? "?"}°C, humidity ${metrics.max_humidity ?? "?"}%, AQI ${metrics.max_aqi ?? "?"}.`
@@ -1148,19 +1151,34 @@ export function MapView({
   }
 
   // ── Departure / Arrival labels ────────────────────────────────
-  const durationMin = selectedRouteOption ? parseDurationMin(selectedRouteOption.duration) : 0;
-  const activeDeparture = selectedHourIdx !== null ? (departureHours[selectedHourIdx] ?? bestDeparture) : bestDeparture;
+  // Best departure card always uses the best departure's own evaluation duration
+  const bestDepartureEval = evals.find(ev => ev.departure_time === bestDeparture?.departureTime) ?? defaultBestEval;
+  const bestDepartureDurationMin = bestDepartureEval?.duration_min ?? null;
+  const heroDurationMin = bestDepartureDurationMin != null
+    ? bestDepartureDurationMin
+    : (selectedRouteOption ? parseDurationMin(selectedRouteOption.duration) : 0);
+  const heroDurationLabel = bestDepartureDurationMin != null
+    ? fmtDuration(bestDepartureDurationMin)
+    : (selectedRouteOption?.duration ?? "--");
+  const heroArrivalLabel = bestDeparture ? addMinutesToLabel(bestDeparture.label, heroDurationMin) : "--";
+
+  // Selected hour (for other parts of the UI)
+  const evalDurationMin = bestEvalForPoints?.duration_min ?? null;
+  const durationMin = evalDurationMin != null ? evalDurationMin : (selectedRouteOption ? parseDurationMin(selectedRouteOption.duration) : 0);
+  const durationLabel = evalDurationMin != null
+    ? fmtDuration(evalDurationMin)
+    : (selectedRouteOption?.duration ?? "--");
+  const activeDeparture = selectedHourIdx !== null ? (activeRouteHours[selectedHourIdx] ?? bestDeparture) : bestDeparture;
   const departureLabel = activeDeparture?.label ?? "--";
   const arrivalLabel = activeDeparture ? addMinutesToLabel(activeDeparture.label, durationMin) : "--";
 
-  // ── Hero pills ────────────────────────────────────────────────
+  // ── Hero pills (all fixed to best departure, never change on selection) ──
   const heroPills = [
-    { k: "Arrive",    v: arrivalLabel },
-    { k: "Duration",  v: selectedRouteOption?.duration ?? "--" },
-    { k: "Peak temp", v: selectedRouteOption ? displayTemp(parseTemp(selectedRouteOption.temperature), unitF) : "--" },
+    { k: "Arrive",    v: heroArrivalLabel },
+    { k: "Duration",  v: heroDurationLabel },
+    { k: "Peak temp", v: bestDepartureEval?.risk?.metrics?.max_temperature != null ? displayTemp(bestDepartureEval.risk.metrics.max_temperature, unitF) : (selectedRouteOption ? displayTemp(parseTemp(selectedRouteOption.temperature), unitF) : "--") },
     { k: "Rain risk", v: (() => {
-        const pts = bestEvalForPoints?.heat_data ?? [];
-        // Prefer precipitation_probability (%), fall back to mm→% conversion
+        const pts = bestDepartureEval?.heat_data ?? [];
         const withProb = pts.filter(p => p.precipitation_probability != null);
         if (withProb.length > 0) {
           const avg = withProb.reduce((s, p) => s + (p.precipitation_probability ?? 0), 0) / withProb.length;
@@ -1177,12 +1195,16 @@ export function MapView({
   const tripSummaryRows: Array<{ label: string; value: string; color?: string; chip?: boolean }> = [
     { label: "Departure",      value: departureLabel },
     { label: "Arrival",        value: arrivalLabel },
-    { label: "Duration",       value: selectedRouteOption?.duration ?? "--" },
+    { label: "Duration",       value: durationLabel },
     { label: "Distance",       value: selectedRouteOption?.distance ?? "--" },
     {
       label: "Peak temp",
-      value: selectedRouteOption ? displayTemp(parseTemp(selectedRouteOption.temperature), unitF) : "--",
-      color: selectedRouteOption ? heatInkForTemp(parseTemp(selectedRouteOption.temperature)) : undefined,
+      value: bestEvalForPoints?.risk?.metrics?.max_temperature != null
+        ? displayTemp(bestEvalForPoints.risk.metrics.max_temperature, unitF)
+        : (selectedRouteOption ? displayTemp(parseTemp(selectedRouteOption.temperature), unitF) : "--"),
+      color: bestEvalForPoints?.risk?.metrics?.max_temperature != null
+        ? heatInkForTemp(bestEvalForPoints.risk.metrics.max_temperature)
+        : (selectedRouteOption ? heatInkForTemp(parseTemp(selectedRouteOption.temperature)) : undefined),
     },
     { label: "Exposure rating", value: selectedRouteOption?.heatRisk ?? "--", chip: true },
   ];
@@ -1200,7 +1222,7 @@ export function MapView({
   }
 
   // ── Departure timeline best label ─────────────────────────────
-  const bestDeptHour = departureHours.find(h => h.isBest) ?? bestDeparture;
+  const bestDeptHour = activeRouteHours.find(h => h.isBest) ?? bestDeparture;
   const windowNote = bestDeptHour
     ? `Best window at ${bestDeptHour.label} · ${bestDeptHour.tempValue}°C avg heat exposure`
     : `${departureRangeHours}h window · ${stepMinutes} min steps`;
@@ -1209,9 +1231,9 @@ export function MapView({
   const bestTemp = bestDeptHour?.tempValue ?? null;
   // Hours within 2°C of best (but not the best itself) are "also good"
   const alsoGoodHours = bestTemp !== null
-    ? departureHours.filter(h => !h.isBest && h.tempValue <= bestTemp + 2)
+    ? activeRouteHours.filter(h => !h.isBest && h.tempValue <= bestTemp + 2)
     : [];
-  const selectedHour = selectedHourIdx !== null ? (departureHours[selectedHourIdx] ?? null) : null;
+  const selectedHour = selectedHourIdx !== null ? (activeRouteHours[selectedHourIdx] ?? null) : null;
   const selectedIsNonBest = selectedHour !== null && !selectedHour.isBest;
   const selectedDeltaC = (selectedHour && bestTemp !== null)
     ? selectedHour.tempValue - bestTemp
@@ -1278,7 +1300,7 @@ export function MapView({
       title: selectedRouteOption
         ? `${selectedRouteOption.label === "RECOMMENDED" ? "Recommended" : selectedRouteOption.label} at ${bestDeparture?.label ?? "--"}`
         : "Optimal plan",
-      body: `Comfort score ${comfortScoreFromRisk(bestDeparture?.risk ?? "moderate", bestDeparture?.tempValue ?? 30)}: the highest-scoring combination of route and departure hour.`,
+      body: `Comfort score ${bestDeparture ? comfortScore(bestDeparture) : "--"}: the highest-scoring combination of route and departure hour.`,
     },
   ];
 
@@ -1477,7 +1499,7 @@ export function MapView({
                     }}
                   >
                     <span style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 34, lineHeight: 1 }}>
-                      {bestDeparture ? comfortScoreFromRisk(bestDeparture.risk, bestDeparture.tempValue) : "--"}
+                      {bestDeparture ? comfortScore(bestDeparture) : "--"}
                     </span>
                     <span style={{ fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.72, marginTop: 4 }}>
                       Comfort
@@ -1504,7 +1526,7 @@ export function MapView({
                   <button
                     onClick={() => {
                       if (recommendedRouteId) setSelectedRouteId(recommendedRouteId);
-                      const bestIdx = departureHours.findIndex(h => h.isBest);
+                      const bestIdx = activeRouteHours.findIndex(h => h.isBest);
                       if (bestIdx >= 0) setSelectedHourIdx(bestIdx);
                       setActiveTab("detail");
                       setTimeout(() => handleCenter(), 100);
@@ -1554,7 +1576,7 @@ export function MapView({
                   </div>
                 </div>
 
-                {departureHours.length === 0 ? (
+                {activeRouteHours.length === 0 ? (
                   <div style={{ height: 190, marginTop: 24, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, color: "#9A948E" }}>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 80, opacity: 0.3 }}>
                       {[40,55,70,85,90,80,65,50,60,75,85,70,55].map((h, i) => (
@@ -1567,11 +1589,11 @@ export function MapView({
                   <>
                     {/* Bar chart */}
                     {(() => {
-                      const scores = departureHours.map(h => comfortScoreFromRisk(h.risk, h.tempValue));
+                      const scores = activeRouteHours.map(h => comfortScore(h));
                       const maxScore = Math.max(...scores, 1);
                       return (
                         <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 190, marginTop: 24 }}>
-                          {departureHours.map((h, idx) => {
+                          {activeRouteHours.map((h, idx) => {
                             const score = scores[idx];
                             const barPct = Math.max(6, Math.round((score / maxScore) * 100));
                             const isBest = !!h.isBest;
@@ -1612,7 +1634,7 @@ export function MapView({
 
                     {/* Hour labels */}
                     <div style={{ display: "flex", gap: 6, marginTop: 8, paddingTop: 8, borderTop: "1px solid #F0EDE8" }}>
-                      {departureHours.map((h, idx) => {
+                      {activeRouteHours.map((h, idx) => {
                         const isBest = !!h.isBest;
                         const isSelected = idx === selectedHourIdx;
                         return (
@@ -1699,7 +1721,7 @@ export function MapView({
                               {alsoGoodHours.map((h, i) => (
                                 <span key={i}>
                                   <button
-                                    onClick={() => setSelectedHourIdx(departureHours.indexOf(h))}
+                                    onClick={() => setSelectedHourIdx(activeRouteHours.indexOf(h))}
                                     style={{
                                       fontWeight: 600, color: "#0EA472", background: "none",
                                       border: "none", cursor: "pointer", padding: "0 2px",
@@ -1790,7 +1812,7 @@ export function MapView({
                     {routeOptions.map((opt, idx) => {
                       const isSelected = opt.id === selectedRouteId;
                       const isRec = opt.label === "RECOMMENDED" || opt.label === "BEST ROUTE";
-                      const comfort = comfortScoreFromRisk(opt.heatRisk.toLowerCase(), parseTemp(opt.temperature));
+                      const comfort = comfortScore({ risk: opt.heatRisk, tempValue: parseTemp(opt.temperature), routeScore: null });
                       const fastest = Math.min(...routes.map(r => parseDurationMin(r.duration)));
                       const thisDur = parseDurationMin(opt.duration);
                       const deltaLabel = thisDur === fastest ? "fastest" : `+${thisDur - fastest} min`;
@@ -2467,7 +2489,7 @@ export function MapView({
           <HeatIntelTab
             heatPoints={allHeatPoints}
             recommendation={recommendation ?? null}
-            departureHours={departureHours}
+            departureHours={activeRouteHours}
             shownDepartureTime={bestEvalForPoints?.departure_time ?? null}
             riskScore={bestEvalForPoints?.risk?.score ?? null}
             origin={origin}
@@ -2487,7 +2509,7 @@ export function MapView({
         <FloatingMapDock
           onStopSelect={handleStopSelect}
           onDepartureHover={setDepartureHover}
-          hours={departureHours}
+          hours={activeRouteHours}
           hoursLoading={isSubmitting}
           windowLabel={`NEXT ${departureRangeHours} HRS · ${stepMinutes} MIN STEPS`}
           pois={_dockPois}
