@@ -377,7 +377,9 @@ export function MapView({
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [activeTab, setActiveTab] = useState<"results" | "detail" | "ai">("results");
   const [unitF, setUnitF] = useState(false);
-  const [selectedHourIdx, setSelectedHourIdx] = useState<number | null>(null);
+  const [_hourSel, _setHourSel] = useState<{ routeId: string; idx: number | null }>({ routeId: selectedRouteId, idx: null });
+  const selectedHourIdx = _hourSel.routeId === selectedRouteId ? _hourSel.idx : null;
+  const setSelectedHourIdx = (idx: number | null) => _setHourSel({ routeId: selectedRouteId, idx });
   const [planApplied, setPlanApplied] = useState(false);
   const [poiFilter, setPoiFilter] = useState<string>("all");
   const [rainVisible, setRainVisible] = useState(false);
@@ -408,11 +410,6 @@ export function MapView({
     () => buildRouteHours(selectedRouteData),
     [selectedRouteData]
   );
-
-  // Reset selected hour when the route changes so stale index doesn't carry over
-  useEffect(() => {
-    setSelectedHourIdx(null);
-  }, [selectedRouteId]);
 
   // Best departure card is always pinned to the overall recommended route's best hour (prop)
   const bestDeparture: DepartureHourInfo | null =
