@@ -168,6 +168,7 @@ export function RoutePlanner() {
       setTimeout(() => {
         setShowSuccess(false);
         setShowMap(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }, 1300);
     } catch (err) {
       console.error("Error planning route:", err);

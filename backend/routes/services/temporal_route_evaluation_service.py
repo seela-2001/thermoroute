@@ -442,21 +442,8 @@ class TemporalRouteEvaluationService:
                         for s in samples
                     ], tomtom_total
 
-        # ── Fallback: time-of-day traffic factor ─────────────
-        ratio = self._traffic_factor(departure_time)
-        print(
-            f"Traffic fallback applied: factor={ratio:.2f} "
-            f"(departure {departure_time.isoformat()})"
-        )
-        return [
-            {
-                **s,
-                "cumulative_duration_seconds": round(
-                    float(s.get("cumulative_duration_seconds", 0)) * ratio, 2
-                ),
-            }
-            for s in samples
-        ], None
+        # TomTom unavailable or failed — keep base OSRM duration unchanged
+        return samples, None
 
     @staticmethod
     def _build_evaluated_route(
@@ -643,6 +630,7 @@ class TemporalRouteEvaluationService:
                 route_map[route_id]["evaluations"].append(
                     {
                         "departure_time": departure_time,
+                        "duration_min": route.get("duration_min"),
                         "route_score": route.get("route_score"),
                         "weather_score": route.get("weather_score"),
                         "time_score": route.get("time_score"),

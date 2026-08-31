@@ -101,7 +101,7 @@ export function createHeatGradientLayer(
     const p2 = heatPoints[i + 1];
 
     L.polyline([[p1.lat, p1.lng], [p2.lat, p2.lng]], {
-      color: RISK_COLORS[p1.risk].color,
+      color: '#10b981',
       weight: glowWidth,
       opacity: glowOpacity,
       smoothFactor: 1,
@@ -131,7 +131,7 @@ export function createGradientRouteLine(
   const latLngs = waypoints.map(wp => [wp.lat, wp.lng] as [number, number]);
 
   return L.polyline(latLngs, {
-    color: isSelected ? '#111827' : '#9CA3AF',
+    color: isSelected ? '#10b981' : '#9CA3AF',
     weight: routeWidth,
     opacity: isSelected ? 1 : 0.4,
     smoothFactor: 1,

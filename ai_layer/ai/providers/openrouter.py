@@ -12,7 +12,7 @@ from ..exceptions import LLMError
 class OpenRouterProvider(LLMProvider):
 
     BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1/chat/completions")
-    DEFAULT_MODEL = "minimax/minimax-m3:free"
+    DEFAULT_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
 
     def __init__(
         self,

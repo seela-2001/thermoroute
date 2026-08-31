@@ -5,11 +5,9 @@ import requests
 
 
 class TomTomRoutingService:
-    ROUTE_URL = (
-        "https://api.tomtom.com/routing/route/1/basic/json"
-    )
+    BASE_URL = "https://api.tomtom.com/routing/1/calculateRoute"
 
-    DEFAULT_TIMEOUT = 5
+    DEFAULT_TIMEOUT = 8
 
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.timeout = timeout
@@ -37,40 +35,46 @@ class TomTomRoutingService:
         if not self.api_key:
             return {
                 "success": False,
-                "error": (
-                    "TOMTOM_API_KEY is not configured"
-                ),
+                "error": "TOMTOM_API_KEY is not configured",
             }
 
-        supporting_points = [
-            f"{point['lon']},{point['lat']}"
-            for point in route_geometry
-        ]
-
-        if len(supporting_points) < 2:
+        if len(route_geometry) < 2:
             return {
                 "success": False,
-                "error": (
-                    "Route geometry needs at least "
-                    "2 points"
-                ),
+                "error": "Route geometry needs at least 2 points",
             }
 
-        params = {
+        origin = route_geometry[0]
+        destination = route_geometry[-1]
+        intermediates = route_geometry[1:-1]
+
+        locations = (
+            f"{origin['lat']},{origin['lon']}"
+            f":{destination['lat']},{destination['lon']}"
+        )
+        url = f"{self.BASE_URL}/{locations}/json"
+
+        params: dict[str, Any] = {
             "key": self.api_key,
             "travelMode": "car",
-            "departAt": departure_time.isoformat(),
-            "supportingPoints": ";".join(
-                supporting_points
-            ),
+            "departAt": departure_time.strftime("%Y-%m-%dT%H:%M:%S"),
             "computeTravelTimeFor": "all",
-            "sectionType": "travelTime",
         }
 
+        # Pass intermediate points in the POST body so TomTom follows
+        # the same road geometry as OSRM instead of its own best route
+        body: dict[str, Any] = {}
+        if intermediates:
+            body["supportingPoints"] = [
+                {"latitude": p["lat"], "longitude": p["lon"]}
+                for p in intermediates
+            ]
+
         try:
-            response = self.session.get(
-                self.ROUTE_URL,
+            response = self.session.post(
+                url,
                 params=params,
+                json=body if body else None,
                 timeout=self.timeout,
             )
 
@@ -83,42 +87,28 @@ class TomTomRoutingService:
                 .get("summary", {})
             )
 
-            travel_time = summary.get(
-                "travelTimeInSeconds"
-            )
+            travel_time = summary.get("travelTimeInSeconds")
 
             if travel_time is None:
                 return {
                     "success": False,
-                    "error": (
-                        "TomTom response missing "
-                        "travelTimeInSeconds"
-                    ),
+                    "error": "TomTom response missing travelTimeInSeconds",
                 }
 
             return {
                 "success": True,
-                "travel_time_seconds": float(
-                    travel_time
-                ),
+                "travel_time_seconds": float(travel_time),
             }
 
         except requests.RequestException as exc:
-            print(
-                f"TomTom Routing error: {exc}"
-            )
-
+            print(f"TomTom Routing error: {exc}")
             return {
                 "success": False,
                 "error": str(exc),
             }
 
         except ValueError as exc:
-            print(
-                "TomTom Routing invalid JSON: "
-                f"{exc}"
-            )
-
+            print(f"TomTom Routing invalid JSON: {exc}")
             return {
                 "success": False,
                 "error": str(exc),

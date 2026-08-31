@@ -16,7 +16,7 @@ class LLMResponse:
 
 @dataclass
 class LLMConfig:
-    model: str = "minimax/minimax-m3:free"
+    model: str = "openai/gpt-4o-mini"
     temperature: float = 0.3
     max_tokens: int = 1500
     timeout_seconds: int = 30
@@ -26,7 +26,7 @@ class LLMConfig:
     @classmethod
     def from_env(cls) -> 'LLMConfig':
         return cls(
-            model=os.getenv("OPENROUTER_MODEL", "minimax/minimax-m3:free"),
+            model=os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
             temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.3")),
             max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "1500")),
             timeout_seconds=int(os.getenv("OPENROUTER_TIMEOUT", "30")),

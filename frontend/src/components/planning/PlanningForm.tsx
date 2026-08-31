@@ -367,6 +367,7 @@ export function PlanningForm({
                     </motion.p>
                   </AnimatePresence>
                   <p style={{ fontSize: 12, color: "#9A948E", margin: 0 }}>Analyzing your route</p>
+                  <p style={{ fontSize: 11, color: "#C4BFB9", margin: "4px 0 0" }}>This may take up to 2 minutes</p>
                 </div>
                 <div
                   style={{
