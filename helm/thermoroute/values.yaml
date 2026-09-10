@@ -1,10 +1,9 @@
 namespace: thermoroute
-
 backend:
   replicaCount: 2
   image:
     repository: sohila12/thermoroute-backend
-    tag: "v1.0.72"
+    tag: "v1.0.78"
     pullPolicy: Always
   containerPort: 8000
   service:
@@ -27,9 +26,9 @@ frontend:
   replicaCount: 2
   image:
     repository: sohila12/thermoroute-frontend
-    tag: "v1.0.61"
+    tag: "v1.0.69"
     pullPolicy: Always
-  containerPort: 80
+  containerPort: 
   service:
     type: ClusterIP
     port: 80
@@ -52,7 +51,6 @@ postgres:
   persistence:
     enabled: true
     size: 5Gi
-
 ingress:
   enabled: true
   className: alb

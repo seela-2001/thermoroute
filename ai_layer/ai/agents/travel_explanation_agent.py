@@ -7,13 +7,14 @@ from ..schemas import (
     TravelExplanationOutput,
     AIResponseStatus,
 )
+from ..json_utils import extract_json
 from .base import BaseAgent
 
 
 class TravelExplanationAgent(BaseAgent):
 
     PROMPT_VERSION = "1.0.0"
-    DEFAULT_MODEL = "gpt-3.5-turbo"
+    DEFAULT_MODEL = "minimax/minimax-m3:free"
 
     def __init__(self, llm_provider: LLMProvider, model: str = None):
         super().__init__(llm_provider)
@@ -65,6 +66,7 @@ class TravelExplanationAgent(BaseAgent):
             },
             "rest_stops": context_dict.get("rest_stops", []),
             "gas_stations": context_dict.get("gas_stations", []),
+            "departure_comparison": context_dict.get("departure_comparison", []),
         }
 
         prompt_context = {
@@ -73,7 +75,8 @@ class TravelExplanationAgent(BaseAgent):
                 "Convert this structured route analysis into natural language. "
                 "Explain the recommendation clearly. "
                 "Determine if current time is good to go based on current risk level. "
-                "If not good to go, check the 12-hour forecast for LOW risk times. "
+                "Use departure_comparison to identify the best departure time based on route_score (lower = better) and risk_level. "
+                "Do NOT use forecast entry times as departure times — forecast entries are waypoint ETAs, not departure options. "
                 "Focus on what matters to the driver. "
                 "Return as valid JSON with good_to_go and best_departure_times fields."
             ),
@@ -83,8 +86,7 @@ class TravelExplanationAgent(BaseAgent):
 
     def _parse_response(self, raw_response: str, context: AIContext) -> dict[str, Any]:
         try:
-            data = json.loads(raw_response)
-
+            data = extract_json(raw_response)
             return {
                 "status": data.get("status", AIResponseStatus.SUCCESS.value),
                 "headline": data.get("headline", ""),
@@ -94,8 +96,7 @@ class TravelExplanationAgent(BaseAgent):
                 "good_to_go": data.get("good_to_go", False),
                 "best_departure_times": data.get("best_departure_times", []),
             }
-
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, Exception) as e:
             return {
                 "status": AIResponseStatus.INTERNAL_ERROR.value,
                 "error": f"Failed to parse LLM response: {e}",

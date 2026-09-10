@@ -31,7 +31,7 @@ export function FeatureSection() {
                 'Street-level heat index across every route segment',
                 'Hour-by-hour heat risk scored for each departure time',
                 'Fuel and rest stops identified along the route',
-                'Road cameras and live conditions on key segments',
+                'POI stops: fuel, hospitals, shade, and cooling spots',
               ].map((feature, index) => (
                 <div key={index} className="flex items-start gap-3">
                   <Check className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
