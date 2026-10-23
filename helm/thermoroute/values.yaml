@@ -28,7 +28,7 @@ frontend:
     repository: sohila12/thermoroute-frontend
     tag: "v1.0.69"
     pullPolicy: Always
-  containerPort: 
+  containerPort: 80
   service:
     type: ClusterIP
     port: 80
